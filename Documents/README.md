@@ -1,84 +1,100 @@
-# Skytech Program Management System
+# Skytech Program Management System (SPMS)
 
-> Enterprise Manufacturing Workflow & Employee Management Platform
+> Enterprise Manufacturing Workflow & Program Management Platform
 
----
-
-## Overview
-
-Skytech Program Management System is an enterprise-grade web application developed for Skytech Switchgear Pvt. Ltd. to digitize and streamline the complete manufacturing lifecycle—from customer inquiry to after-sales service.
-
-The application replaces manual tracking using Excel sheets, paper checklists, and disconnected departmental communication with a centralized workflow management platform.
-
-Every customer order progresses through predefined departments, where each department completes its assigned tasks before handing over the job to the next department.
-
-The system provides real-time visibility into project status, employee workload, department progress, inventory movement, and service activities.
+![Version](https://img.shields.io/badge/version-v1.0.0-blue)
+![Status](https://img.shields.io/badge/status-Planning-orange)
+![License](https://img.shields.io/badge/license-Private-red)
 
 ---
 
-## Business Workflow
+# Overview
+
+Skytech Program Management System (SPMS) is an enterprise-grade web application designed for **Skytech Switchgear Pvt. Ltd.** to digitize and streamline the complete manufacturing lifecycle of electrical panels and switchgear systems.
+
+The system replaces manual workflows, Excel sheets, paper checklists, and disconnected departmental communication with a centralized platform that enables real-time project tracking, employee management, workflow monitoring, inventory coordination, reporting, and after-sales service.
+
+This application is designed as a scalable production software that can evolve into a complete ERP solution.
+
+---
+
+# Business Workflow
+
+Every customer order follows the manufacturing workflow shown below.
 
 ```text
-Inquiry
-    ↓
+Customer Inquiry
+        │
+        ▼
 Design & Costing
-    ↓
-Quotation
-    ↓
+        │
+        ▼
+Quotation / Offer
+        │
+        ▼
 Client Approval
-    ↓
+        │
+        ▼
 Mechanical Department
-    ↓
+        │
+        ▼
 Assembly & Busbar
-    ↓
-Electrical
-    ↓
-Testing
-    ↓
-Dispatch
-    ↓
+        │
+        ▼
+Electrical Department
+        │
+        ▼
+Testing Department
+        │
+        ▼
+Ready for Dispatch
+        │
+        ▼
 Accounts
-    ↓
+        │
+        ▼
 Support & Service
 ```
 
-Each department contains predefined tasks that must be completed before the workflow moves to the next phase.
+Each department contains predefined tasks that must be completed before the workflow moves to the next stage.
 
 ---
 
-## Objectives
+# Project Goals
 
-- Digitize the complete manufacturing workflow
-- Improve collaboration between departments
+- Digitize the complete manufacturing process
 - Track every customer order in real time
-- Monitor employee productivity
+- Monitor department-wise progress
+- Manage employees and responsibilities
+- Improve communication between departments
 - Reduce manual paperwork
-- Provide management dashboards
-- Maintain complete audit history
-- Improve reporting and accountability
+- Generate reports and analytics
+- Maintain audit history of every action
+- Build a scalable foundation for future ERP modules
 
 ---
 
 # Core Modules
-
-## Authentication
-
-- Microsoft Entra ID Authentication
-- Role Based Access Control
-- Session Management
-
----
 
 ## Dashboard
 
 - Company Overview
 - Running Orders
 - Department Progress
-- Employee Status
 - Pending Tasks
 - Delayed Jobs
-- KPIs
+- Employee Status
 - Notifications
+- Analytics
+
+---
+
+## Authentication
+
+- Microsoft Entra ID (Azure AD)
+- JWT Authentication
+- Session Management
+- Role-Based Access Control (RBAC)
 
 ---
 
@@ -90,36 +106,42 @@ Each department contains predefined tasks that must be completed before the work
 - Attendance
 - Leave Management
 - Roles & Permissions
+- Performance Tracking
 
 ---
 
 ## Customer Management
 
-- Customer Database
-- Contact Information
+- Customers
+- Contacts
 - Projects
-- Previous Orders
+- Orders
+- Communication History
 
 ---
 
 ## Order Management
 
 - Create Orders
-- Track Order Progress
 - Order Timeline
-- Order Status
+- Project Progress
+- Workflow Assignment
 - Priority Management
+- Attachments
+- Order History
 
 ---
 
-## Workflow Management
+## Workflow Engine
 
-- Configurable Workflow Templates
-- Department-wise Stages
+- Workflow Templates
+- Department Stages
+- Task Templates
 - Task Assignment
-- Task Completion
-- Stage Approval
-- Workflow History
+- Status Tracking
+- Department Handover
+- Remarks
+- Approvals
 
 ---
 
@@ -134,109 +156,64 @@ Each department contains predefined tasks that must be completed before the work
 - Accounts
 - Support & Service
 
-Each department has predefined task templates.
-
 ---
 
 ## Inventory Management
 
 - Material Requests
 - Purchase Orders
-- Stock Management
+- Vendors
 - Material Allocation
-- Material Handover
+- Material History
+- Stock Monitoring
 
 ---
 
-<!-- ## File Management
+## File Management
 
-- Drawing Uploads
+- Drawings
 - BOQ
 - CAD Files
-- Documents
+- PDF Documents
+- Images
 - Reports
-- Attachments
 
---- -->
+---
 
 ## Reporting
 
-- Progress Reports
 - Employee Reports
+- Project Reports
 - Department Reports
 - Inventory Reports
-- Service Reports
-- Export to Excel/PDF
+- Attendance Reports
+- Excel Export
+- PDF Export
 
 ---
 
 ## Notifications
 
 - Task Assignment
-- Task Completion
-- Due Dates
-- Delayed Orders
+- Deadline Reminders
+- Workflow Updates
+- Department Completion
 - Email Notifications
 
 ---
 
 ## Audit Logs
 
-Every important action performed inside the system will be logged.
+Every critical operation will be logged.
 
-Examples:
+Examples
 
+- Login
 - Order Created
-- Task Completed
-- Status Changed
+- Task Updated
 - Employee Assigned
-- Workflow Updated
-
----
-
-# Functional Specifications & Requirements
-
-## 1. SkyTech Management System
-
-### Core Features & Modules
-- **Dashboard**
-  - Announcement notification on navbar [Continuous Flow]
-- **Attendance & HR**
-  - Attendance
-  - Leave
-  - Salary
-  - Tasks
-- **Active Programmes / Running Jobs**
-  - Excel Upload - Excel Read in Running Job, Delete Job option after delivery
-  - If job failed, we can add remarks, and for follow up as well
-- **Inquiry & Internal Data**
-  - Inquiry / Internal Data - Restricted access
-- **QR Code & Document Management**
-  - QR code generation, Link generation, Document management
-- **Project Information**
-  - Project Information - Delete Option on Website that deletes the particular project's data from website.
-- **Reporting & Product Data**
-  - View Reports
-  - Quantity, BOM, price, stock limit
-
----
-
-## 2. Inventory Management System
-
-### Core Components
-- Inventory Dashboard
-- Job Master
-- Item Master
-
-### Stock & Tracking
-- Stock IN
-- Stock OUT
-- Job-Wise
-
-### Options
-- Item Add/Delete
-- Stock IN
-- Stock OUT
+- Department Completed
+- Workflow Changed
 
 ---
 
@@ -244,12 +221,13 @@ Examples:
 
 ## Frontend
 
-- Next.js 15
+- React.js
 - TypeScript
-- React
+- Vite
 - Tailwind CSS
 - shadcn/ui
 - TanStack Query
+- React Router
 - Zustand
 - React Hook Form
 - Zod
@@ -258,18 +236,14 @@ Examples:
 
 ## Backend
 
-- Next.js Route Handlers
+- Node.js
+- Express.js
 - TypeScript
 - Prisma ORM
-- PostgreSQL
-
----
-
-## Authentication
-
-- Auth.js
-- Microsoft Entra ID
-- OAuth 2.0
+- JWT
+- Multer (File Upload)
+- Nodemailer
+- Microsoft Graph API
 
 ---
 
@@ -279,51 +253,56 @@ Examples:
 
 ---
 
+## Authentication
+
+- Microsoft Entra ID
+- OAuth 2.0
+- JWT
+- Role-Based Access Control
+
+---
+
 ## Storage
 
-- AWS S3 Bucket
+- Azure Blob Storage (Planned)
 
 ---
 
 ## Deployment
 
-Frontend
+### Frontend
 
 - Vercel
 
-Backend
+### Backend
 
-- Vercel Functions / Dedicated Server (future) / AWS / Render
+- Railway / Render / DigitalOcean
 
-Database
+### Database
 
-- PostgreSQL
+- PostgreSQL (Neon or Supabase)
 
 ---
+
 
 # High-Level Architecture
 
 ```text
-                    Browser
-                       │
-                       ▼
-              Next.js Application
-                       │
-         ┌─────────────┴─────────────┐
-         │                           │
-         ▼                           ▼
- Authentication               API Routes
-         │                           │
-         └─────────────┬─────────────┘
-                       ▼
-                    Prisma ORM
-                       │
-                       ▼
-                  PostgreSQL
-                       │
-        ┌──────────────┴─────────────┐
-        ▼                            ▼
-   Azure Blob                 Notification Services
+                        Users
+                           │
+                           ▼
+                React.js Frontend (Vite)
+                           │
+             HTTPS / REST API / JWT
+                           │
+                           ▼
+             Node.js + Express Backend
+                           │
+         ┌─────────────────┼─────────────────┐
+         │                 │                 │
+         ▼                 ▼                 ▼
+     PostgreSQL      AWS S3          Microsoft Graph
+      (Prisma)                               API
 ```
 
 ---
@@ -334,87 +313,69 @@ Database
 - HR
 - Design Dept.
 - Mechanical Dept.
-- Bubar Dept.
+- Assembly Dept.
 - Electrical Dept.
 - Testing Dept.
 - Store Dept.
 - Accounts Dept.
 - Service Dept.
 
-
----
-
-# Folder Structure
-
-```
-src/
-
-app/
-
-components/
-
-features/
-
-lib/
-
-hooks/
-
-services/
-
-types/
-
-utils/
-
-prisma/
-
-docs/
-
-public/
-```
-
 ---
 
 # Development Principles
 
-- Feature-first architecture
-- Reusable components
-- Strict TypeScript
-- Database-driven workflows
-- No hardcoded business logic
-- Responsive UI
-- Audit logging
-- Secure authentication
-- Role-based authorization
+- Feature-Based Architecture
+- Modular Design
+- SOLID Principles
+- DRY (Don't Repeat Yourself)
+- KISS (Keep It Simple)
+- Strong Type Safety
+- Reusable Components
+- Database-Driven Workflow
+- Clean Code Practices
 
 ---
 
-# Documentation
+# Security
 
-The project documentation is available inside the `/Documents` directory.
-
-- Software Requirement Specification
-- System Architecture
-- Database Design
-- API Specification
-- Development Roadmap
-- Workflow Engine
-- Deployment Guide
-- Coding Standards
-- Meeting Notes
-- Changelog
+- HTTPS
+- JWT Authentication
+- Microsoft OAuth Login
+- RBAC
+- Input Validation (Zod)
+- Password Hashing (if local users are added)
+- Secure File Uploads
+- Audit Logging
 
 ---
 
+# Project Status
+
+| Item | Status |
+|------|--------|
+| Requirement Analysis | ✅ Completed |
+| System Design | 🚧 In Progress |
+| Database Design | ⏳ Pending |
+| API Development | ⏳ Pending |
+| Frontend Development | ⏳ Pending |
+| Testing | ⏳ Pending |
+| Deployment | ⏳ Pending |
 
 ---
 
 # License
 
-Confidential Proprietary Software
+**Private & Confidential**
 
-Developed exclusively for Skytech Switchgear Pvt. Ltd.
+This software is developed exclusively for **Skytech Switchgear Pvt. Ltd.**
 
-Unauthorized copying, distribution, or modification is prohibited.
+Unauthorized copying, modification, or distribution is prohibited.
 
 ---
 
+# Maintainers
+
+**Developer:** Vinayak  
+**Client:** Skytech Switchgear Pvt. Ltd.  
+**Version:** v1.0.0  
+**Last Updated:** July 2026

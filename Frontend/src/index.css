@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Outfit', sans-serif;
+
+  --color-brand-bg: #EAE0CF;
+  --color-brand-secondary: #94B4C1;
+  --color-brand-section: #213448;
+
+  --color-brand-navy: #213448;
+  --color-brand-royal: #3b526b;
+  --color-brand-sky: #94B4C1;
+  --color-brand-light: #EAE0CF;
+  
+  --color-dark-bg: #EAE0CF;
+  --color-dark-card: #213448;
+  --color-dark-border: rgba(148, 180, 193, 0.2);
+}
+
+:root {
+  font-family: var(--font-sans);
+}
+
+body {
+  background-color: var(--color-brand-bg);
+  color: var(--color-brand-section);
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-brand-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-brand-secondary);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-brand-section);
+}
+
+/* Glassmorphism/Card custom styling */
+.glass {
+  background: var(--color-brand-section);
+  border: 1px solid rgba(148, 180, 193, 0.15);
+  color: #f3f4f6;
+  box-shadow: 0 4px 20px -2px rgba(33, 52, 72, 0.15);
+}
+.glass-heavy {
+  background: var(--color-brand-section);
+  border: 1px solid rgba(148, 180, 193, 0.3);
+  color: #ffffff;
+  box-shadow: 0 8px 32px 0 rgba(33, 52, 72, 0.25);
+}

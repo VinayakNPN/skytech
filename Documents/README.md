@@ -221,7 +221,7 @@ Examples
 
 ## Frontend
 
-- React.js
+- Next.js
 - TypeScript
 - Vite
 - Tailwind CSS

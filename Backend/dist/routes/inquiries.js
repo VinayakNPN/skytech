@@ -8,7 +8,7 @@ const router = (0, express_1.Router)();
 router.get('/', async (req, res) => {
     try {
         const inquiries = await prisma_1.prisma.inquiry.findMany({
-            orderBy: { createdAt: 'desc' }
+            orderBy: { inquiryCode: 'asc' }
         });
         res.json(inquiries);
     }
@@ -48,7 +48,7 @@ router.get('/stats', async (req, res) => {
 router.post('/', async (req, res) => {
     try {
         const count = await prisma_1.prisma.inquiry.count();
-        const inquiryCode = `INQ-${101 + count}`;
+        const inquiryCode = `INQ_${String(count + 1).padStart(2, '0')}`;
         const newInquiry = await prisma_1.prisma.inquiry.create({
             data: {
                 inquiryCode,

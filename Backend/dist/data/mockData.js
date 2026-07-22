@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getInquiryStats = exports.deleteInquiry = exports.updateInquiry = exports.createInquiry = exports.mockInquiries = exports.updateRunningJobProgress = exports.updateLeaveStatus = exports.applyForLeave = exports.createVisitReport = exports.updateEmployeeTaskStatus = exports.createEmployeeTask = exports.clockEmployeeIn = exports.getEmployeeDashboardStats = exports.mockSalarySlips = exports.mockRunningJobs = exports.mockLeaveApplications = exports.mockVisitReports = exports.mockEmployeeTasks = exports.mockEmployeeAttendance = exports.updateMaterialRequestStatus = exports.createMaterialRequest = exports.getMaterialRequests = exports.getEmployees = exports.toggleTaskCompletion = exports.updateOrderDeptRemark = exports.updateOrderStage = exports.createOrder = exports.getOrderById = exports.getOrders = exports.systemLogs = exports.mockMaterialRequests = exports.mockEmployees = exports.mockOrders = exports.DEFAULT_TASKS_BY_DEPT = exports.DEPARTMENTS = exports.DEVELOPMENT_STAGES = exports.BUSINESS_STAGES = void 0;
+exports.getInquiryStats = exports.deleteInquiry = exports.updateInquiry = exports.createInquiry = exports.mockInquiries = exports.updateRunningJobProgress = exports.updateLeaveStatus = exports.applyForLeave = exports.deleteVisitReport = exports.updateVisitReport = exports.createVisitReport = exports.updateEmployeeTaskStatus = exports.createEmployeeTask = exports.clockEmployeeIn = exports.getEmployeeDashboardStats = exports.mockSalarySlips = exports.mockRunningJobs = exports.mockLeaveApplications = exports.mockVisitReports = exports.mockEmployeeTasks = exports.mockEmployeeAttendance = exports.updateMaterialRequestStatus = exports.createMaterialRequest = exports.getMaterialRequests = exports.getEmployees = exports.toggleTaskCompletion = exports.updateOrderDeptRemark = exports.updateOrderStage = exports.createOrder = exports.getOrderById = exports.getOrders = exports.systemLogs = exports.mockMaterialRequests = exports.mockEmployees = exports.mockOrders = exports.DEFAULT_TASKS_BY_DEPT = exports.DEPARTMENTS = exports.DEVELOPMENT_STAGES = exports.BUSINESS_STAGES = void 0;
 exports.generateDefaultTasks = generateDefaultTasks;
 exports.logSystemEvent = logSystemEvent;
 exports.BUSINESS_STAGES = [
@@ -520,7 +520,7 @@ const createVisitReport = (visitData) => {
         location: visitData.location || 'Unknown Location',
         engineer: visitData.engineer || 'Unknown Engineer',
         date: visitData.date || new Date().toISOString().split('T')[0],
-        status: 'Scheduled',
+        status: visitData.status || 'Scheduled',
         notes: visitData.notes || ''
     };
     exports.mockVisitReports.push(newVisit);
@@ -528,6 +528,29 @@ const createVisitReport = (visitData) => {
     return newVisit;
 };
 exports.createVisitReport = createVisitReport;
+const updateVisitReport = (id, visitData) => {
+    const idx = exports.mockVisitReports.findIndex(v => v.id === id);
+    if (idx !== -1) {
+        exports.mockVisitReports[idx] = {
+            ...exports.mockVisitReports[idx],
+            ...visitData
+        };
+        logSystemEvent('API Server', `Site visit report ${id} updated`, 'info');
+        return exports.mockVisitReports[idx];
+    }
+    return null;
+};
+exports.updateVisitReport = updateVisitReport;
+const deleteVisitReport = (id) => {
+    const idx = exports.mockVisitReports.findIndex(v => v.id === id);
+    if (idx !== -1) {
+        const deleted = exports.mockVisitReports.splice(idx, 1)[0];
+        logSystemEvent('API Server', `Site visit report ${id} deleted`, 'info');
+        return deleted;
+    }
+    return null;
+};
+exports.deleteVisitReport = deleteVisitReport;
 const applyForLeave = (leaveData) => {
     const newLeave = {
         id: `LV-0${exports.mockLeaveApplications.length + 1}`,

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { 
   Plus, 
   ChevronRight, 
@@ -55,6 +56,7 @@ interface WBSPhase {
 
 interface ConfirmedInquiryProject {
   id: string;
+  inquiryCode?: string;
   client: string;
   project: string;
   amount: string;
@@ -63,10 +65,10 @@ interface ConfirmedInquiryProject {
 }
 
 const DEFAULT_CONFIRMED_PROJECTS: ConfirmedInquiryProject[] = [
-  { id: 'INQ-101', client: 'Reliance Green Energy', project: '132kV Substation Panel', amount: '1850000', date: '2026-07-18', status: 'Confirmed' },
-  { id: 'INQ-103', client: 'Adani Solar Power', project: 'MCC Panel System', amount: '2400000', date: '2026-07-14', status: 'Confirmed' },
-  { id: 'INQ-105', client: 'Torrent Power Pvt Ltd', project: 'APFC Panel 440V', amount: '1510000', date: '2026-07-09', status: 'Confirmed' },
-  { id: 'INQ-107', client: 'BHEL Engineering', project: 'Generator Control Panel', amount: '2280000', date: '2026-06-28', status: 'Confirmed' }
+  { id: 'INQ_01', client: 'Reliance Green Energy', project: '132kV Substation Panel', amount: '1850000', date: '2026-07-18', status: 'Confirmed' },
+  { id: 'INQ_03', client: 'Adani Solar Power', project: 'MCC Panel System', amount: '2400000', date: '2026-07-14', status: 'Confirmed' },
+  { id: 'INQ_05', client: 'Torrent Power Pvt Ltd', project: 'APFC Panel 440V', amount: '1510000', date: '2026-07-09', status: 'Confirmed' },
+  { id: 'INQ_07', client: 'BHEL Engineering', project: 'Generator Control Panel', amount: '2280000', date: '2026-06-28', status: 'Confirmed' }
 ];
 
 const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
@@ -79,14 +81,14 @@ const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
     badgeText: 'text-blue-700',
     owner: 'Vinayak NPN',
     tasks: [
-      { id: '1.1', wbsCode: '1.1', name: 'Inquiry Received to Skytech', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ-101', owner: 'Sales Team', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
-      { id: '1.2', wbsCode: '1.2', name: 'Design & Costing Proposal', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ-101', owner: 'Design Lead', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
-      { id: '1.3', wbsCode: '1.3', name: 'Quotation Offer Ready', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ-101', owner: 'Costing Team', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
-      { id: '1.4', wbsCode: '1.4', name: 'Offer Sent to Client', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ-101', owner: 'Sales Manager', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
-      { id: '1.5', wbsCode: '1.5', name: 'Client Order Confirmation', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ-101', owner: 'Vinayak NPN', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
+      { id: '1.1', wbsCode: '1.1', name: 'Inquiry Received to Skytech', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_01', owner: 'Sales Team', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
+      { id: '1.2', wbsCode: '1.2', name: 'Design & Costing Proposal', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_01', owner: 'Design Lead', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
+      { id: '1.3', wbsCode: '1.3', name: 'Quotation Offer Ready', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_01', owner: 'Costing Team', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
+      { id: '1.4', wbsCode: '1.4', name: 'Offer Sent to Client', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_01', owner: 'Sales Manager', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '1.5', wbsCode: '1.5', name: 'Client Order Confirmation', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_01', owner: 'Vinayak NPN', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
       
-      { id: '1.1-103', wbsCode: '1.1', name: 'Inquiry Received to Skytech', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ-103', owner: 'Sales Team', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
-      { id: '1.5-103', wbsCode: '1.5', name: 'Client Order Confirmation', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ-103', owner: 'Vinayak NPN', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 }
+      { id: '1.1-103', wbsCode: '1.1', name: 'Inquiry Received to Skytech', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_03', owner: 'Sales Team', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
+      { id: '1.5-103', wbsCode: '1.5', name: 'Client Order Confirmation', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_03', owner: 'Vinayak NPN', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 }
     ]
   },
   {
@@ -292,7 +294,7 @@ export default function WBSPage() {
               phaseId: t.phaseId,
               phaseName: p.name,
               phaseBadge: p.badge,
-              projectId: 'INQ-101',
+              projectId: t.inquiry?.inquiryCode || t.inquiryId || 'INQ_01',
               owner: t.owner,
               planHours: t.planHours,
               actualHours: t.actualHours,
@@ -308,19 +310,20 @@ export default function WBSPage() {
     }
   };
 
-  // Fetch confirmed inquiries live from Backend API
+  // Fetch confirmed inquiries live from Backend API (Sorted Ascending)
   useEffect(() => {
     const fetchConfirmedInquiries = async () => {
       try {
         const res = await fetch('http://localhost:5000/api/inquiries');
         if (res.ok) {
           const data = await res.json();
-          const confirmed = data.filter((i: any) => i.status === 'Confirmed');
+          const confirmed = data
+            .filter((i: any) => i.status === 'Confirmed')
+            .sort((a: any, b: any) => (a.inquiryCode || a.id).localeCompare(b.inquiryCode || b.id, undefined, { numeric: true }));
           if (confirmed.length > 0) {
             setConfirmedProjects(confirmed);
-            if (!confirmed.some((p: any) => p.id === selectedProjectId)) {
-              setSelectedProjectId(confirmed[0].id);
-            }
+            const defaultId = confirmed[0].inquiryCode || confirmed[0].id;
+            setSelectedProjectId(prev => (prev === 'INQ-101' ? defaultId : prev));
           }
         }
       } catch (err) {
@@ -332,7 +335,7 @@ export default function WBSPage() {
   }, []);
 
   // Currently selected confirmed project object
-  const selectedProject = confirmedProjects.find(p => p.id === selectedProjectId);
+  const selectedProject = confirmedProjects.find(p => p.id === selectedProjectId || p.inquiryCode === selectedProjectId);
 
   // Toggle Phase Expansion
   const togglePhase = (phaseId: string) => {
@@ -463,6 +466,71 @@ export default function WBSPage() {
     }
   };
 
+  // Export WBS Tasks to Excel (.xlsx) file handler
+  const handleExportExcel = () => {
+    const exportRows: any[] = [];
+
+    wbsData.forEach((phase) => {
+      const subtasks = phase.tasks.filter(t => {
+        const matchesProject = selectedProjectId === 'ALL' || 
+                              t.projectId === selectedProjectId || 
+                              (selectedProject && (t.projectId === selectedProject.inquiryCode || t.projectId === selectedProject.id));
+        const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              t.wbsCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              t.owner.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesStatus = statusFilter === 'ALL' || t.status === statusFilter;
+        return matchesProject && matchesSearch && matchesStatus;
+      });
+
+      subtasks.forEach((t) => {
+        const proj = confirmedProjects.find(p => p.id === t.projectId || p.inquiryCode === t.projectId);
+        exportRows.push({
+          'WBS Code': t.wbsCode,
+          'Phase / Department': t.phaseName || phase.name,
+          'Task Name': t.name,
+          'Inquiry ID': t.projectId,
+          'Client Name': proj ? proj.client : 'SkyTech Internal',
+          'Project Description': proj ? proj.project : 'Standard WBS Task',
+          'Owner / Responsible': t.owner,
+          'Plan Hours (hrs)': t.planHours,
+          'Actual Hours (hrs)': t.actualHours,
+          'Status': t.status,
+          'Progress (%)': `${t.progress}%`
+        });
+      });
+    });
+
+    if (exportRows.length === 0) {
+      alert('No WBS tasks available to export matching your current filters.');
+      return;
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    worksheet['!cols'] = [
+      { wch: 12 }, // WBS Code
+      { wch: 28 }, // Phase / Department
+      { wch: 38 }, // Task Name
+      { wch: 14 }, // Inquiry ID
+      { wch: 28 }, // Client Name
+      { wch: 32 }, // Project Description
+      { wch: 22 }, // Owner / Responsible
+      { wch: 18 }, // Plan Hours
+      { wch: 18 }, // Actual Hours
+      { wch: 15 }, // Status
+      { wch: 14 }  // Progress
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'WBS Tasks');
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const fileName = selectedProjectId === 'ALL'
+      ? `SkyTech_WBS_Full_Report_${dateStr}.xlsx`
+      : `SkyTech_WBS_${selectedProjectId}_Report_${dateStr}.xlsx`;
+
+    XLSX.writeFile(workbook, fileName);
+  };
+
   // Calculate WBS Metrics dynamically filtered by selected project!
   let totalTasksCount = 0;
   let totalCompletedCount = 0;
@@ -471,7 +539,10 @@ export default function WBSPage() {
 
   wbsData.forEach(p => {
     p.tasks.forEach(t => {
-      if (selectedProjectId === 'ALL' || t.projectId === selectedProjectId) {
+      const matchesProject = selectedProjectId === 'ALL' || 
+                            t.projectId === selectedProjectId || 
+                            (selectedProject && (t.projectId === selectedProject.inquiryCode || t.projectId === selectedProject.id));
+      if (matchesProject) {
         totalTasksCount++;
         if (t.status === 'DONE') totalCompletedCount++;
         totalPlannedHours += t.planHours;
@@ -515,7 +586,7 @@ export default function WBSPage() {
 
             <button
               type="button"
-              onClick={() => alert(`Exporting WBS report for project ${selectedProjectId}...`)}
+              onClick={handleExportExcel}
               className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 transition-colors cursor-pointer"
             >
               <FileSpreadsheet size={15} className="text-slate-500" />
@@ -541,8 +612,8 @@ export default function WBSPage() {
             >
               <option value="ALL">🌐 All Confirmed Projects (Aggregated Overview)</option>
               {confirmedProjects.map(p => (
-                <option key={p.id} value={p.id}>
-                  [{p.id}] {p.client} — {p.project} (₹ {(Number(p.amount)/100000).toFixed(1)}L)
+                <option key={p.id} value={p.inquiryCode || p.id}>
+                  [{p.inquiryCode || p.id}] {p.client} — {p.project} (₹ {(Number(p.amount)/100000).toFixed(1)}L)
                 </option>
               ))}
             </select>
@@ -726,7 +797,9 @@ export default function WBSPage() {
                 
                 // Filter subtasks based on Project Selection, Search & Status
                 const filteredSubtasks = phase.tasks.filter(t => {
-                  const matchesProject = selectedProjectId === 'ALL' || t.projectId === selectedProjectId;
+                  const matchesProject = selectedProjectId === 'ALL' || 
+                                        t.projectId === selectedProjectId || 
+                                        (selectedProject && (t.projectId === selectedProject.inquiryCode || t.projectId === selectedProject.id));
                   const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                                         t.wbsCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
                                         t.owner.toLowerCase().includes(searchQuery.toLowerCase());

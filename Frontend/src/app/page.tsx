@@ -261,16 +261,16 @@ interface InquiryItem {
 }
 
 const INQUIRY_DATABASE: InquiryItem[] = [
-  { id: 'INQ-101', client: 'Reliance Green Energy', project: '132kV Substation Panel', amount: '₹ 18,50,000', date: '18 Jul 2026', status: 'Confirmed', weeksAgo: 1 },
-  { id: 'INQ-102', client: 'Tata Steel Infra', project: 'Control Desk & PCC Panel', amount: '₹ 12,20,000', date: '16 Jul 2026', status: 'Offer Sent', weeksAgo: 1 },
-  { id: 'INQ-103', client: 'Adani Solar Power', project: 'MCC Panel System', amount: '₹ 24,00,000', date: '14 Jul 2026', status: 'Confirmed', weeksAgo: 1 },
-  { id: 'INQ-104', client: 'L&T Construction', project: 'Distribution Board DB-04', amount: '₹ 8,40,000', date: '12 Jul 2026', status: 'Unconfirmed', weeksAgo: 1 },
-  { id: 'INQ-105', client: 'Torrent Power Pvt Ltd', project: 'APFC Panel 440V', amount: '₹ 15,10,000', date: '09 Jul 2026', status: 'Confirmed', weeksAgo: 2 },
-  { id: 'INQ-106', client: 'JSW Energy Ltd', project: 'Busduct System 2000A', amount: '₹ 31,00,000', date: '05 Jul 2026', status: 'Offer Sent', weeksAgo: 2 },
-  { id: 'INQ-107', client: 'BHEL Engineering', project: 'Generator Control Panel', amount: '₹ 22,80,000', date: '28 Jun 2026', status: 'Confirmed', weeksAgo: 3 },
-  { id: 'INQ-108', client: 'GMR Airports Pvt Ltd', project: 'Main Switchboard MSB-1', amount: '₹ 19,40,000', date: '24 Jun 2026', status: 'Unconfirmed', weeksAgo: 4 },
-  { id: 'INQ-109', client: 'NTPC Power Systems', project: 'Auxiliary Relay Panel', amount: '₹ 11,50,000', date: '18 Jun 2026', status: 'Confirmed', weeksAgo: 5 },
-  { id: 'INQ-110', client: 'Siemens Energy India', project: 'HT Breaker Panel 11kV', amount: '₹ 29,00,000', date: '12 Jun 2026', status: 'Confirmed', weeksAgo: 6 }
+  { id: 'INQ_01', client: 'Reliance Green Energy', project: '132kV Substation Panel', amount: '₹ 18,50,000', date: '18 Jul 2026', status: 'Confirmed', weeksAgo: 1 },
+  { id: 'INQ_02', client: 'Tata Steel Infra', project: 'Control Desk & PCC Panel', amount: '₹ 12,20,000', date: '16 Jul 2026', status: 'Offer Sent', weeksAgo: 1 },
+  { id: 'INQ_03', client: 'Adani Solar Power', project: 'MCC Panel System', amount: '₹ 24,00,000', date: '14 Jul 2026', status: 'Confirmed', weeksAgo: 1 },
+  { id: 'INQ_04', client: 'L&T Construction', project: 'Distribution Board DB-04', amount: '₹ 8,40,000', date: '12 Jul 2026', status: 'Unconfirmed', weeksAgo: 1 },
+  { id: 'INQ_05', client: 'Torrent Power Pvt Ltd', project: 'APFC Panel 440V', amount: '₹ 15,10,000', date: '09 Jul 2026', status: 'Confirmed', weeksAgo: 2 },
+  { id: 'INQ_06', client: 'JSW Energy Ltd', project: 'Busduct System 2000A', amount: '₹ 31,00,000', date: '05 Jul 2026', status: 'Offer Sent', weeksAgo: 2 },
+  { id: 'INQ_07', client: 'BHEL Engineering', project: 'Generator Control Panel', amount: '₹ 22,80,000', date: '28 Jun 2026', status: 'Confirmed', weeksAgo: 3 },
+  { id: 'INQ_08', client: 'GMR Airports Pvt Ltd', project: 'Main Switchboard MSB-1', amount: '₹ 19,40,000', date: '24 Jun 2026', status: 'Unconfirmed', weeksAgo: 4 },
+  { id: 'INQ_09', client: 'NTPC Power Systems', project: 'Auxiliary Relay Panel', amount: '₹ 11,50,000', date: '18 Jun 2026', status: 'Confirmed', weeksAgo: 5 },
+  { id: 'INQ_10', client: 'Siemens Energy India', project: 'HT Breaker Panel 11kV', amount: '₹ 29,00,000', date: '12 Jun 2026', status: 'Confirmed', weeksAgo: 6 }
 ];
 
 export default function Dashboard() {

@@ -16,7 +16,8 @@ import {
   Search,
   ChevronLeft,
   Workflow,
-  Send
+  Send,
+  Package
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -113,6 +114,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         { id: 'inquiries', name: 'Inquiry Management', href: '/inquiries', icon: Send },
         { id: 'wbs', name: 'WBS', href: '/wbs', icon: Workflow },
         { id: 'orders', name: 'Order Management', href: '/orders', icon: ClipboardList },
+        { id: 'inventory', name: 'Inventory Management', href: '/inventory', icon: Package },
       ]
     },
     {

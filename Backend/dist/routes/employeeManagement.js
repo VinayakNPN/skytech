@@ -76,12 +76,28 @@ router.get('/visits', (req, res) => {
 });
 // POST new visit report
 router.post('/visits', (req, res) => {
-    const { title, client, location, engineer, date, notes } = req.body;
+    const { title, client, location, engineer, date, notes, status } = req.body;
     if (!title || !client || !location || !engineer) {
         return res.status(400).json({ error: 'title, client, location and engineer are required' });
     }
-    const newVisit = (0, mockData_1.createVisitReport)({ title, client, location, engineer, date, notes });
+    const newVisit = (0, mockData_1.createVisitReport)({ title, client, location, engineer, date, notes, status });
     res.status(201).json(newVisit);
+});
+// PUT update visit report
+router.put('/visits/:id', (req, res) => {
+    const updated = (0, mockData_1.updateVisitReport)(req.params.id, req.body);
+    if (!updated) {
+        return res.status(404).json({ error: 'Visit report not found' });
+    }
+    res.json(updated);
+});
+// DELETE visit report
+router.delete('/visits/:id', (req, res) => {
+    const deleted = (0, mockData_1.deleteVisitReport)(req.params.id);
+    if (!deleted) {
+        return res.status(404).json({ error: 'Visit report not found' });
+    }
+    res.json(deleted);
 });
 // GET all leaves
 router.get('/leaves', (req, res) => {

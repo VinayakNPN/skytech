@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { 
   Send, 
   Plus, 
@@ -25,6 +26,7 @@ import {
 
 interface Inquiry {
   id: string;
+  inquiryCode?: string;
   client: string;
   project: string;
   amount: string;
@@ -146,6 +148,47 @@ export default function InquiriesPage() {
     }
   };
 
+  // Export Inquiries to Excel (.xlsx) file handler
+  const handleExportInquiriesExcel = () => {
+    if (inquiries.length === 0) {
+      alert('No inquiries available to export.');
+      return;
+    }
+
+    const exportRows = filteredInquiries.map((inq) => ({
+      'Inquiry ID': inq.inquiryCode || inq.id,
+      'Client Name': inq.client,
+      'Project Name': inq.project,
+      'Quoted Amount (₹)': Number(inq.amount),
+      'Contact Person': inq.contactPerson,
+      'Email': inq.email,
+      'Phone': inq.phone,
+      'Inquiry Date': inq.date,
+      'Status': inq.status,
+      'Remarks': inq.remarks
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    worksheet['!cols'] = [
+      { wch: 14 },
+      { wch: 28 },
+      { wch: 32 },
+      { wch: 20 },
+      { wch: 22 },
+      { wch: 28 },
+      { wch: 18 },
+      { wch: 15 },
+      { wch: 18 },
+      { wch: 40 }
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Client Inquiries');
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(workbook, `SkyTech_Inquiries_Database_${dateStr}.xlsx`);
+  };
+
   // Dynamic Statistics Calculations
   const totalCount = inquiries.length;
   const offersSentCount = inquiries.filter(i => i.status === 'Offer Sent' || i.status === 'Confirmed').length;
@@ -153,14 +196,17 @@ export default function InquiriesPage() {
   const unconfirmedCount = inquiries.filter(i => i.status === 'Unconfirmed' || i.status === 'Inquiry Received').length;
   const winRatePercentage = offersSentCount > 0 ? Math.round((confirmedCount / offersSentCount) * 100) : 0;
 
-  // Filtered List
-  const filteredInquiries = inquiries.filter(i => {
-    const matchesSearch = i.client.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          i.project.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          i.id.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'ALL' || i.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Filtered List (Sorted Ascending by Inquiry Code)
+  const filteredInquiries = inquiries
+    .filter(i => {
+      const matchesSearch = i.client.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            i.project.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            i.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (i.inquiryCode && i.inquiryCode.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesStatus = statusFilter === 'ALL' || i.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => (a.inquiryCode || a.id).localeCompare(b.inquiryCode || b.id, undefined, { numeric: true }));
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -206,7 +252,7 @@ export default function InquiriesPage() {
 
           <button
             type="button"
-            onClick={() => alert('Exporting Inquiry Database to Excel...')}
+            onClick={handleExportInquiriesExcel}
             className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 transition-colors cursor-pointer"
           >
             <FileSpreadsheet size={15} className="text-slate-500" />
@@ -422,7 +468,7 @@ export default function InquiriesPage() {
               {filteredInquiries.length > 0 ? (
                 filteredInquiries.map((inq) => (
                   <tr key={inq.id} className="bg-white hover:bg-slate-50/80 transition-colors text-slate-800">
-                    <td className="py-3 px-4 font-mono font-bold text-blue-600">{inq.id}</td>
+                    <td className="py-3 px-4 font-mono font-bold text-blue-600">{inq.inquiryCode || inq.id}</td>
                     <td className="py-3 px-4">
                       <div>
                         <span className="font-bold text-slate-900 block text-xs">{inq.client}</span>

@@ -10,6 +10,11 @@ router.get('/', async (req, res) => {
         const phases = await prisma_1.prisma.wBSPhase.findMany({
             include: {
                 tasks: {
+                    include: {
+                        inquiry: {
+                            select: { id: true, inquiryCode: true }
+                        }
+                    },
                     orderBy: { wbsCode: 'asc' }
                 }
             },
@@ -25,7 +30,13 @@ router.get('/', async (req, res) => {
 // POST add new task to WBS phase in Database
 router.post('/tasks', async (req, res) => {
     try {
-        const { wbsCode, name, phaseId, inquiryId, owner, planHours, status } = req.body;
+        let { wbsCode, name, phaseId, inquiryId, owner, planHours, status } = req.body;
+        // Resolve inquiryId if inquiryCode string (e.g. INQ_01) was passed
+        if (inquiryId && typeof inquiryId === 'string' && inquiryId.startsWith('INQ')) {
+            const dbInq = await prisma_1.prisma.inquiry.findUnique({ where: { inquiryCode: inquiryId } });
+            if (dbInq)
+                inquiryId = dbInq.id;
+        }
         const progress = status === 'DONE' ? 100 : (status === 'IN PROGRESS' ? 50 : 0);
         const actualHours = status === 'DONE' ? Number(planHours) : (status === 'IN PROGRESS' ? Math.round(Number(planHours) / 2) : 0);
         const newTask = await prisma_1.prisma.wBSTask.create({

@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   FileSpreadsheet
 } from 'lucide-react';
+import { API_BASE_URL } from '@/config/api';
 
 interface Inquiry {
   id: string;
@@ -67,7 +68,7 @@ export default function InquiriesPage() {
   // Fetch inquiries from backend API
   const fetchInquiries = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/inquiries');
+      const res = await fetch(`${API_BASE_URL}/api/inquiries`);
       if (res.ok) {
         const data = await res.json();
         setInquiries(data);
@@ -87,7 +88,7 @@ export default function InquiriesPage() {
   const handleAddInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:5000/api/inquiries', {
+      const res = await fetch(`${API_BASE_URL}/api/inquiries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formInquiry)
@@ -117,7 +118,7 @@ export default function InquiriesPage() {
     e.preventDefault();
     if (!formInquiry.id) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/inquiries/${formInquiry.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/inquiries/${formInquiry.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formInquiry)
@@ -135,7 +136,7 @@ export default function InquiriesPage() {
   const handleConfirmDeleteInquiry = async () => {
     if (!deletingInquiry) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/inquiries/${deletingInquiry.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/inquiries/${deletingInquiry.id}`, {
         method: 'DELETE'
       });
       if (res.ok) {

@@ -19,6 +19,7 @@ import {
   Send,
   Package
 } from 'lucide-react';
+import { API_BASE_URL } from '@/config/api';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -85,7 +86,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     // Check backend connection
     const checkConnection = async () => {
       try {
-        const res = await fetch('http://localhost:5000/health');
+        const res = await fetch(`${API_BASE_URL}/health`);
         if (res.ok) {
           setBackendStatus('Online');
         } else {

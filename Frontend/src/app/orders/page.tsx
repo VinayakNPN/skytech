@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Workflow
 } from 'lucide-react';
+import { API_BASE_URL } from '@/config/api';
 
 interface Task {
   id: string;
@@ -97,7 +98,7 @@ export default function OrderManagement() {
   // Fetch orders from API
   const fetchOrders = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/orders');
+      const res = await fetch(`${API_BASE_URL}/api/orders`);
       if (res.ok) {
         const data = await res.json();
         setOrders(data);
@@ -121,7 +122,7 @@ export default function OrderManagement() {
     const panels = panelInput.split(',').map(p => p.trim()).filter(p => p.length > 0);
 
     try {
-      const res = await fetch('http://localhost:5000/api/orders', {
+      const res = await fetch(`${API_BASE_URL}/api/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -150,7 +151,7 @@ export default function OrderManagement() {
   // Toggle checklist item
   const handleToggleTask = async (orderId: string, taskId: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/orders/${orderId}/tasks/${taskId}/toggle`, {
+      const res = await fetch(`${API_BASE_URL}/api/orders/${orderId}/tasks/${taskId}/toggle`, {
         method: 'PUT'
       });
       if (res.ok) {
@@ -164,7 +165,7 @@ export default function OrderManagement() {
   // Transition stage
   const handleStageChange = async (orderId: string, newStage: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/orders/${orderId}/stage`, {
+      const res = await fetch(`${API_BASE_URL}/api/orders/${orderId}/stage`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -188,7 +189,7 @@ export default function OrderManagement() {
       : (orders.find(o => o.id === orderId)?.deptRemarks?.[dept] || '');
 
     try {
-      const res = await fetch(`http://localhost:5000/api/orders/${orderId}/remarks`, {
+      const res = await fetch(`${API_BASE_URL}/api/orders/${orderId}/remarks`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

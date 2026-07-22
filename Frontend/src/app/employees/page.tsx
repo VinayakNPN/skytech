@@ -17,6 +17,7 @@ import {
   UserPlus,
   Sparkles
 } from 'lucide-react';
+import { API_BASE_URL } from '@/config/api';
 
 interface Employee {
   id: string;
@@ -57,7 +58,7 @@ export default function EmployeeDirectory() {
   // Fetch employees
   const fetchEmployees = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/employees');
+      const res = await fetch(`${API_BASE_URL}/api/employees`);
       if (res.ok) {
         const data = await res.json();
         setEmployees(data);
@@ -76,7 +77,7 @@ export default function EmployeeDirectory() {
   // Update employee status
   const handleStatusChange = async (empId: string, newStatus: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/employees/${empId}/status`, {
+      const res = await fetch(`${API_BASE_URL}/api/employees/${empId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
@@ -95,7 +96,7 @@ export default function EmployeeDirectory() {
     if (!newEmpName.trim() || !newEmpEmail.trim()) return;
 
     try {
-      const res = await fetch('http://localhost:5000/api/employees', {
+      const res = await fetch(`${API_BASE_URL}/api/employees`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

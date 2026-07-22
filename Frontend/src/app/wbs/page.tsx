@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
+import { API_BASE_URL } from '@/config/api';
 import { 
   Plus, 
   ChevronRight, 
@@ -275,7 +276,7 @@ export default function WBSPage() {
   // Fetch WBS tree from Backend API (Database)
   const fetchWBS = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/wbs');
+      const res = await fetch(`${API_BASE_URL}/api/wbs`);
       if (res.ok) {
         const dbPhases = await res.json();
         if (dbPhases && dbPhases.length > 0) {
@@ -314,7 +315,7 @@ export default function WBSPage() {
   useEffect(() => {
     const fetchConfirmedInquiries = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/inquiries');
+        const res = await fetch(`${API_BASE_URL}/api/inquiries`);
         if (res.ok) {
           const data = await res.json();
           const confirmed = data
@@ -364,7 +365,7 @@ export default function WBSPage() {
       const subtaskCount = (targetPhase?.tasks.length || 0) + 1;
       const subtaskNum = (targetPhase?.wbsCode || '1.0').replace('.0', '') + '.' + subtaskCount;
 
-      const res = await fetch('http://localhost:5000/api/wbs/tasks', {
+      const res = await fetch(`${API_BASE_URL}/api/wbs/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -399,7 +400,7 @@ export default function WBSPage() {
     if (!editingTask) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/wbs/tasks/${editingTask.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/wbs/tasks/${editingTask.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingTask)
@@ -426,7 +427,7 @@ export default function WBSPage() {
     if (!deletingTask) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/wbs/tasks/${deletingTask.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/wbs/tasks/${deletingTask.id}`, {
         method: 'DELETE'
       });
 
@@ -449,7 +450,7 @@ export default function WBSPage() {
     const nextProgress = nextStatus === 'DONE' ? 100 : (nextStatus === 'IN PROGRESS' ? 50 : 0);
 
     try {
-      const res = await fetch(`http://localhost:5000/api/wbs/tasks/${taskId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/wbs/tasks/${taskId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -29,6 +29,7 @@ import {
   ChevronRight,
   RotateCcw
 } from 'lucide-react';
+import { API_BASE_URL } from '@/config/api';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -301,7 +302,7 @@ export default function EmployeeManagementPrototype() {
   // Fetch all prototype data from Backend, fallback to local mock data on failure
   const fetchAllData = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/employee-management/dashboard');
+      const res = await fetch('${API_BASE_URL}/api/employee-management/dashboard');
       if (res.ok) {
         const dashboardData = await res.json();
         setStats(dashboardData.stats);
@@ -315,12 +316,12 @@ export default function EmployeeManagementPrototype() {
 
       // Fetch other sub-routes in parallel
       const [empRes, tskRes, jobRes, lvRes, payRes, visRes] = await Promise.all([
-        fetch('http://localhost:5000/api/employees').catch(() => null),
-        fetch('http://localhost:5000/api/employee-management/tasks').catch(() => null),
-        fetch('http://localhost:5000/api/employee-management/jobs').catch(() => null),
-        fetch('http://localhost:5000/api/employee-management/leaves').catch(() => null),
-        fetch('http://localhost:5000/api/employee-management/salary').catch(() => null),
-        fetch('http://localhost:5000/api/employee-management/visits').catch(() => null)
+        fetch('${API_BASE_URL}/api/employees').catch(() => null),
+        fetch('${API_BASE_URL}/api/employee-management/tasks').catch(() => null),
+        fetch('${API_BASE_URL}/api/employee-management/jobs').catch(() => null),
+        fetch('${API_BASE_URL}/api/employee-management/leaves').catch(() => null),
+        fetch('${API_BASE_URL}/api/employee-management/salary').catch(() => null),
+        fetch('${API_BASE_URL}/api/employee-management/visits').catch(() => null)
       ]);
 
       if (empRes?.ok) setEmployees(await empRes.json());
@@ -389,7 +390,7 @@ export default function EmployeeManagementPrototype() {
 
     if (backendOnline) {
       try {
-        const res = await fetch('http://localhost:5000/api/employee-management/attendance/clock', {
+        const res = await fetch('${API_BASE_URL}/api/employee-management/attendance/clock', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ employeeId, time })
@@ -432,7 +433,7 @@ export default function EmployeeManagementPrototype() {
 
     if (backendOnline) {
       try {
-        const res = await fetch('http://localhost:5000/api/employee-management/tasks', {
+        const res = await fetch('${API_BASE_URL}/api/employee-management/tasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(taskForm)
@@ -469,7 +470,7 @@ export default function EmployeeManagementPrototype() {
 
     if (backendOnline) {
       try {
-        const res = await fetch(`http://localhost:5000/api/employee-management/tasks/${taskId}/status`, {
+        const res = await fetch(`${API_BASE_URL}/api/employee-management/tasks/${taskId}/status`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: nextStatus })
@@ -503,7 +504,7 @@ export default function EmployeeManagementPrototype() {
 
     if (backendOnline) {
       try {
-        const res = await fetch('http://localhost:5000/api/employee-management/leaves', {
+        const res = await fetch('${API_BASE_URL}/api/employee-management/leaves', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(leavePayload)
@@ -531,7 +532,7 @@ export default function EmployeeManagementPrototype() {
   const handleLeaveApproval = async (leaveId: string, status: 'Approved' | 'Rejected') => {
     if (backendOnline) {
       try {
-        const res = await fetch(`http://localhost:5000/api/employee-management/leaves/${leaveId}/status`, {
+        const res = await fetch(`${API_BASE_URL}/api/employee-management/leaves/${leaveId}/status`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status })
@@ -583,7 +584,7 @@ export default function EmployeeManagementPrototype() {
 
     if (backendOnline) {
       try {
-        await fetch(`http://localhost:5000/api/employee-management/jobs/${jobId}/progress`, {
+        await fetch(`${API_BASE_URL}/api/employee-management/jobs/${jobId}/progress`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ progress, status })
@@ -607,7 +608,7 @@ export default function EmployeeManagementPrototype() {
 
     if (backendOnline) {
       try {
-        const res = await fetch('http://localhost:5000/api/employee-management/visits', {
+        const res = await fetch('${API_BASE_URL}/api/employee-management/visits', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(visitForm)
@@ -648,7 +649,7 @@ export default function EmployeeManagementPrototype() {
 
     if (backendOnline) {
       try {
-        const res = await fetch(`http://localhost:5000/api/employee-management/visits/${editingVisit.id}`, {
+        const res = await fetch(`${API_BASE_URL}/api/employee-management/visits/${editingVisit.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(editingVisit)
@@ -681,7 +682,7 @@ export default function EmployeeManagementPrototype() {
 
     if (backendOnline) {
       try {
-        await fetch(`http://localhost:5000/api/employee-management/visits/${deletingVisit.id}`, {
+        await fetch(`${API_BASE_URL}/api/employee-management/visits/${deletingVisit.id}`, {
           method: 'DELETE'
         });
         setVisits(prev => prev.filter(v => v.id !== deletingVisit.id));

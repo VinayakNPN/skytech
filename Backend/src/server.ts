@@ -1,15 +1,20 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import dashboardRouter from './routes/dashboard';
-import ordersRouter from './routes/orders';
+import helmet from 'helmet';
 import employeesRouter from './routes/employees';
 import inventoryRouter from './routes/inventory';
 import systemRouter from './routes/system';
 import employeeManagementRouter from './routes/employeeManagement';
 import inquiriesRouter from './routes/inquiries';
 import wbsRouter from './routes/wbs';
+import projectTeamsRouter from './routes/projectTeams';
 import { logSystemEvent } from './data/mockData';
+import { logger } from './utils/logger';
+import { errorHandler } from './middleware/errorHandler';
+import { notFound } from './middleware/notFound';
+import authRoutes from './routes/authRoutes';
+import { authenticate } from './middleware/authenticate';
 
 dotenv.config();
 
@@ -17,6 +22,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
+app.use(helmet());
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5000',
@@ -28,7 +34,6 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, server-to-server)
     if (!origin) return callback(null, true);
     const cleanOrigin = origin.trim();
     if (
@@ -46,23 +51,30 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Routes
-app.use('/api/dashboard', dashboardRouter);
-app.use('/api/orders', ordersRouter);
+// Public Routes
+app.use('/api/auth', authRoutes);
+
+// Protected API Routes
+app.use('/api', authenticate);
 app.use('/api/employees', employeesRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/system', systemRouter);
 app.use('/api/employee-management', employeeManagementRouter);
 app.use('/api/inquiries', inquiriesRouter);
 app.use('/api/wbs', wbsRouter);
+app.use('/api/projects', projectTeamsRouter);
 
 // Basic health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', service: 'Skytech Program Management System API' });
 });
 
+// 404 & Error Handling Middleware
+app.use(notFound);
+app.use(errorHandler);
+
 // Start Server
 app.listen(PORT, () => {
-  console.log(`[Server] SkyTech PM Backend running on http://localhost:${PORT}`);
+  logger.info(`[Server] SkyTech PM Backend running on http://localhost:${PORT}`);
   logSystemEvent('API Server', `Express backend initialized on port ${PORT}`, 'info');
 });

@@ -9,6 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@azure/msal-browser": "^5.17.1",
+    "@azure/msal-react": "^5.5.3",
+    "@headlessui/react": "^2.2.10",
+    "@heroicons/react": "^2.2.0",
+    "js-cookie": "^3.0.8",
+    "jwt-decode": "^4.0.0",
     "lucide-react": "^1.25.0",
     "next": "16.2.10",
     "react": "19.2.4",
@@ -17,6 +23,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/js-cookie": "^3.0.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

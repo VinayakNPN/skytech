@@ -31,8 +31,10 @@ import {
   Search,
   CheckCircle,
   Layers,
-  ArrowUpRight
+  PauseCircle
 } from 'lucide-react';
+import ProjectDropdown from '@/components/ProjectDropdown';
+import { API_BASE_URL } from '@/config/api';
 
 // Circular progress component
 const CircularProgress = ({ percentage, strokeColor }: { percentage: number; strokeColor: string }) => {
@@ -268,10 +270,120 @@ const INQUIRY_DATABASE: InquiryItem[] = [
   { id: 'INQ_05', client: 'Torrent Power Pvt Ltd', project: 'APFC Panel 440V', amount: '₹ 15,10,000', date: '09 Jul 2026', status: 'Confirmed', weeksAgo: 2 },
   { id: 'INQ_06', client: 'JSW Energy Ltd', project: 'Busduct System 2000A', amount: '₹ 31,00,000', date: '05 Jul 2026', status: 'Offer Sent', weeksAgo: 2 },
   { id: 'INQ_07', client: 'BHEL Engineering', project: 'Generator Control Panel', amount: '₹ 22,80,000', date: '28 Jun 2026', status: 'Confirmed', weeksAgo: 3 },
-  { id: 'INQ_08', client: 'GMR Airports Pvt Ltd', project: 'Main Switchboard MSB-1', amount: '₹ 19,40,000', date: '24 Jun 2026', status: 'Unconfirmed', weeksAgo: 4 },
-  { id: 'INQ_09', client: 'NTPC Power Systems', project: 'Auxiliary Relay Panel', amount: '₹ 11,50,000', date: '18 Jun 2026', status: 'Confirmed', weeksAgo: 5 },
-  { id: 'INQ_10', client: 'Siemens Energy India', project: 'HT Breaker Panel 11kV', amount: '₹ 29,00,000', date: '12 Jun 2026', status: 'Confirmed', weeksAgo: 6 }
+  { id: 'INQ_08', client: 'GMR Airports Pvt Ltd', project: 'Main Switchboard MSB-1', amount: '₹ 19,40,000', date: '24 Jun 2026', status: 'Unconfirmed', weeksAgo: 4 }
 ];
+
+const DEFAULT_CONFIRMED_PROJECTS = [
+  { id: 'INQ_01', inquiryCode: 'INQ_01', client: 'Reliance Green Energy', project: '132kV Substation Panel', status: 'Confirmed' },
+  { id: 'INQ_03', inquiryCode: 'INQ_03', client: 'Adani Solar Power', project: 'MCC Panel System', status: 'Confirmed' },
+  { id: 'INQ_05', inquiryCode: 'INQ_05', client: 'Torrent Power Pvt Ltd', project: 'APFC Panel 440V', status: 'Confirmed' },
+  { id: 'INQ_07', inquiryCode: 'INQ_07', client: 'BHEL Engineering', project: 'Generator Control Panel', status: 'Confirmed' }
+];
+
+/**
+ * Per-project phase completion profiles — STRICTLY SEQUENTIAL.
+ * A phase can only have completed tasks if ALL previous phases are 100% done.
+ *
+ * INQ_01 – Reliance (132kV)  : Assembly & Busbar in progress     → 16/38 (42%)
+ * INQ_03 – Adani Solar (MCC) : Mechanical in progress             → 11/38 (29%)
+ * INQ_05 – Torrent (APFC)    : Testing almost done               → 28/38 (74%)
+ * INQ_07 – BHEL (Generator)  : Electrical in progress            → 21/38 (55%)
+ *
+ * Phases: Design(7) → Mechanical(6) → Assembly(6) → Electrical(5) → Testing(5) → Store(5) → Support(4)
+ */
+const PROJECT_PHASE_PROFILES: Record<string, boolean[][]> = {
+  // INQ_01: Design ✓ → Mechanical ✓ → Assembly WIP → rest LOCKED
+  INQ_01: [
+    [true,  true,  true,  true,  true,  true,  true],   // Design: 7/7 ✓
+    [true,  true,  true,  true,  true,  true],            // Mechanical: 6/6 ✓
+    [true,  true,  true,  false, false, false],           // Assembly: 3/6 ⚡ ACTIVE
+    [false, false, false, false, false],                  // Electrical: 0/5 🔒
+    [false, false, false, false, false],                  // Testing:    0/5 🔒
+    [false, false, false, false, false],                  // Store:      0/5 🔒
+    [false, false, false, false],                         // Support:    0/4 🔒
+  ],
+  // INQ_03: Design ✓ → Mechanical WIP → rest LOCKED
+  INQ_03: [
+    [true,  true,  true,  true,  true,  true,  true],   // Design: 7/7 ✓
+    [true,  true,  true,  true,  false, false],           // Mechanical: 4/6 ⚡ ACTIVE
+    [false, false, false, false, false, false],           // Assembly:   0/6 🔒
+    [false, false, false, false, false],                  // Electrical: 0/5 🔒
+    [false, false, false, false, false],                  // Testing:    0/5 🔒
+    [false, false, false, false, false],                  // Store:      0/5 🔒
+    [false, false, false, false],                         // Support:    0/4 🔒
+  ],
+  // INQ_05: Design ✓ → Mech ✓ → Assembly ✓ → Electrical ✓ → Testing WIP → rest LOCKED
+  INQ_05: [
+    [true,  true,  true,  true,  true,  true,  true],   // Design: 7/7 ✓
+    [true,  true,  true,  true,  true,  true],            // Mechanical: 6/6 ✓
+    [true,  true,  true,  true,  true,  true],            // Assembly:   6/6 ✓
+    [true,  true,  true,  true,  true],                   // Electrical: 5/5 ✓
+    [true,  true,  true,  true,  false],                  // Testing: 4/5 ⚡ ACTIVE
+    [false, false, false, false, false],                  // Store:   0/5 🔒
+    [false, false, false, false],                         // Support: 0/4 🔒
+  ],
+  // INQ_07: Design ✓ → Mech ✓ → Assembly ✓ → Electrical WIP → rest LOCKED
+  INQ_07: [
+    [true,  true,  true,  true,  true,  true,  true],   // Design: 7/7 ✓
+    [true,  true,  true,  true,  true,  true],            // Mechanical: 6/6 ✓
+    [true,  true,  true,  true,  true,  true],            // Assembly:   6/6 ✓
+    [true,  true,  false, false, false],                  // Electrical: 2/5 ⚡ ACTIVE
+    [false, false, false, false, false],                  // Testing:    0/5 🔒
+    [false, false, false, false, false],                  // Store:      0/5 🔒
+    [false, false, false, false],                         // Support:    0/4 🔒
+  ],
+};
+
+/** Build PhaseData[] for a given project code, using DB tasks if available else the profile map */
+function buildPhasesForProject(projectId: string, dbPhaseData?: any[]): PhaseData[] {
+  // Normalise: accept both UUID and inquiryCode forms
+  const profileKey = Object.keys(PROJECT_PHASE_PROFILES).find(k => projectId.includes(k)) || projectId;
+  const profile = PROJECT_PHASE_PROFILES[profileKey];
+
+  return INITIAL_PHASES.map((initPhase, pIdx) => {
+    // 1. Try real DB tasks for this project first
+    if (dbPhaseData && dbPhaseData.length > 0) {
+      const dbP = dbPhaseData.find((p: any) =>
+        p.name?.toLowerCase().includes(initPhase.shortName.toLowerCase().split(' ')[0]) ||
+        p.badge?.toLowerCase() === initPhase.id.toLowerCase()
+      );
+      if (dbP?.tasks) {
+        const pTasks = dbP.tasks.filter((t: any) =>
+          t.inquiryId === projectId ||
+          t.inquiry?.id === projectId ||
+          t.inquiry?.inquiryCode === projectId
+        );
+        if (pTasks.length > 0) {
+          return {
+            ...initPhase,
+            tasks: pTasks.map((t: any, idx: number) => ({
+              id: idx + 1,
+              name: t.name,
+              completed: t.status === 'DONE'
+            }))
+          };
+        }
+      }
+    }
+
+    // 2. Use the explicit per-project profile (guaranteed distinct per project)
+    if (profile && profile[pIdx]) {
+      return {
+        ...initPhase,
+        tasks: initPhase.tasks.map((t, tIdx) => ({
+          ...t,
+          completed: profile[pIdx][tIdx] ?? false
+        }))
+      };
+    }
+
+    // 3. Last resort: return tasks with all incomplete (0% progress) for brand new projects
+    return {
+      ...initPhase,
+      tasks: initPhase.tasks.map(t => ({ ...t, completed: false }))
+    };
+  });
+}
 
 export default function Dashboard() {
   // Dynamically initialize to Today's date by default
@@ -302,26 +414,75 @@ export default function Dashboard() {
     return firstIncomplete ? firstIncomplete.id : phaseList[phaseList.length - 1].id;
   };
 
-  // Phases & Tasks State (Auto-selects first active incomplete phase)
-  const [phases, setPhases] = useState<PhaseData[]>(INITIAL_PHASES);
-  const [selectedPhaseId, setSelectedPhaseId] = useState<string>(() => getNextActivePhaseId(INITIAL_PHASES));
+  // Phases & Tasks State — initialized with INQ_01 profile, updated on project switch
+  const [phases, setPhases] = useState<PhaseData[]>(() => buildPhasesForProject('INQ_01'));
+  const [selectedPhaseId, setSelectedPhaseId] = useState<string>(() => getNextActivePhaseId(buildPhasesForProject('INQ_01')));
   const [departmentFilter, setDepartmentFilter] = useState<string>('All');
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
-
-  // Auto-advance active phase focus when all tasks in selected phase are completed
-  useEffect(() => {
-    const activePhaseObj = phases.find(p => p.id === selectedPhaseId);
-    if (activePhaseObj && activePhaseObj.tasks.every(t => t.completed)) {
-      const nextId = getNextActivePhaseId(phases);
-      if (nextId !== selectedPhaseId) {
-        setSelectedPhaseId(nextId);
-      }
-    }
-  }, [phases, selectedPhaseId]);
 
   // Sales & Inquiry Funnel Timeframe State
   const [timeHorizon, setTimeHorizon] = useState<'1w' | '4w' | '8w'>('4w');
   const [inquirySearch, setInquirySearch] = useState('');
+
+  // Active Project Selector State (R1)
+  const [confirmedProjects, setConfirmedProjects] = useState<any[]>(DEFAULT_CONFIRMED_PROJECTS);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('INQ_01');
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/inquiries`);
+        if (res.ok) {
+          const data = await res.json();
+          const confirmed = data.filter((i: any) => i.status === 'Confirmed' && !i.holdStatus);
+          if (confirmed.length > 0) {
+            setConfirmedProjects(confirmed);
+            setSelectedProjectId(prev => (prev && confirmed.some((p: any) => (p.inquiryCode || p.id) === prev) ? prev : (confirmed[0].inquiryCode || confirmed[0].id)));
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch confirmed projects:', err);
+      }
+      setConfirmedProjects(DEFAULT_CONFIRMED_PROJECTS);
+      setSelectedProjectId(DEFAULT_CONFIRMED_PROJECTS[0].id);
+    };
+    fetchProjects();
+  }, []);
+
+  // Currently selected project object
+  const currentSelectedProject = confirmedProjects.find(p => p.id === selectedProjectId || p.inquiryCode === selectedProjectId) || confirmedProjects[0] || DEFAULT_CONFIRMED_PROJECTS[0];
+
+  // Dynamically adapt department phases & checklist tasks to selectedProjectId
+  useEffect(() => {
+    if (!selectedProjectId) return;
+
+    // Use inquiryCode if we can find it, so database UUIDs correctly map to our INQ_XX profiles
+    const proj = confirmedProjects.find(p => p.id === selectedProjectId || p.inquiryCode === selectedProjectId);
+    const lookupCode = proj?.inquiryCode || proj?.id || selectedProjectId;
+
+    const fetchProjectTasks = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/wbs`);
+        if (res.ok) {
+          const dbPhases = await res.json();
+          // buildPhasesForProject tries DB tasks first, then falls back to per-project profile
+          const newPhases = buildPhasesForProject(lookupCode, dbPhases);
+          setPhases(newPhases);
+          setSelectedPhaseId(getNextActivePhaseId(newPhases));
+          return;
+        }
+      } catch (err) {
+        console.error('Project WBS fetch failed:', err);
+      }
+      // No API — use profile only
+      const newPhases = buildPhasesForProject(lookupCode);
+      setPhases(newPhases);
+      setSelectedPhaseId(getNextActivePhaseId(newPhases));
+    };
+
+    fetchProjectTasks();
+  }, [selectedProjectId, confirmedProjects]);
 
   const calendarRef = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
@@ -343,8 +504,18 @@ export default function Dashboard() {
   const selectedDateFormatted = `${selectedDay} ${MONTH_NAMES[selectedMonth]} ${selectedYear}`;
   const isToday = selectedDay === todayDay && selectedMonth === todayMonth && selectedYear === todayYear;
 
-  // Toggle task completion
+  // Toggle task completion — enforces sequential department workflow
   const handleToggleTask = (phaseId: string, taskId: number) => {
+    const phaseIdx = phases.findIndex(p => p.id === phaseId);
+    if (phaseIdx < 0) return;
+
+    // WORKFLOW GATE: all phases before this one must be 100% complete
+    const previousPhasesAllDone = phases
+      .slice(0, phaseIdx)
+      .every(p => p.tasks.every(t => t.completed));
+
+    if (!previousPhasesAllDone) return; // silently block — UI already shows lock
+
     setPhases(prev => prev.map(phase => {
       if (phase.id !== phaseId) return phase;
       return {
@@ -362,35 +533,53 @@ export default function Dashboard() {
   // Selected phase data object
   const activePhaseData = phases.find(p => p.id === selectedPhaseId) || phases[0];
 
-  // Dynamic stats calculation based on date and phases
-  const getStatsForDate = (day: number, month: number, year: number) => {
-    const seed = (day * 7 + month * 13 + year) % 100;
-
+  // ── Project-scoped stats ── all derived from `phases` which updates on project switch
+  const projectStats = React.useMemo(() => {
     let totalCompleted = 0;
     let totalTasksCount = 0;
+    let deptsDone = 0;
+    let deptsInProgress = 0;
+    let deptsNotStarted = 0;
+
     phases.forEach(p => {
-      totalCompleted += p.tasks.filter(t => t.completed).length;
+      const done = p.tasks.filter(t => t.completed).length;
+      totalCompleted += done;
       totalTasksCount += p.tasks.length;
+      if (done === p.tasks.length) deptsDone++;
+      else if (done > 0) deptsInProgress++;
+      else deptsNotStarted++;
     });
 
-    const overallProgress = Math.round((totalCompleted / totalTasksCount) * 100);
+    const overallProgress = totalTasksCount === 0 ? 0 : Math.round((totalCompleted / totalTasksCount) * 100);
     const activeIncompletePhase = phases.find(p => p.tasks.some(t => !t.completed)) || phases[phases.length - 1];
+
+    // Project-seeded (deterministic) staff number so it varies per project but stays stable
+    const seed = selectedProjectId.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+    const assignedStaff = 4 + (seed % 5);          // 4–8 staff per project
+    const presentStaff = Math.max(1, assignedStaff - (seed % 2)); // 0–1 absent
+    const attendancePct = Math.round((presentStaff / assignedStaff) * 100);
+
+    // Phases still active (in progress or not started)
+    const activePhaseCount = deptsInProgress + deptsNotStarted;
 
     return {
       overallProgress,
       tasksCompleted: totalCompleted,
       totalTasks: totalTasksCount,
       completedPercentage: overallProgress,
-      staffPresent: Math.min(8, Math.max(5, 6 + (seed % 3))),
-      totalStaff: 8,
-      attendancePercentage: Math.round((7 / 8) * 100),
+      assignedStaff,
+      presentStaff,
+      attendancePct,
       activeTasks: totalTasksCount - totalCompleted,
-      runningJobs: 4,
+      deptsInProgress,
+      deptsDone,
+      deptsNotStarted,
+      activePhaseCount,
       currentPhase: activeIncompletePhase.shortName
     };
-  };
+  }, [phases, selectedProjectId]);
 
-  const stats = getStatsForDate(selectedDay, selectedMonth, selectedYear);
+  const stats = projectStats;
 
   // Calendar calculations
   const getDaysInMonth = (month: number, year: number) => new Date(year, month + 1, 0).getDate();
@@ -475,24 +664,32 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Top Header Bar */}
-      <div className="flex items-center justify-between gap-3 pb-1">
-        {/* Left side: History mode notification status */}
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+        {/* Left side: Project Selection Dropdown (R1) */}
+        <div className="flex flex-col gap-2">
+          <div className="w-80">
+            <span className="text-[10px] font-bold text-slate-500 tracking-wider uppercase mb-1 block">Active Project</span>
+            <ProjectDropdown
+              projects={confirmedProjects}
+              selectedProjectId={selectedProjectId}
+              onSelectProject={setSelectedProjectId}
+            />
+          </div>
+
           {!isToday && (
             <div className="flex items-center gap-2 bg-amber-50 text-amber-800 border border-amber-200/80 px-3.5 py-1.5 rounded-xl text-xs font-semibold animate-in fade-in">
               <Clock size={14} className="text-amber-600" />
-              <span>Viewing Task History for <strong>{selectedDateFormatted}</strong></span>
+              <span>Viewing History for <strong>{selectedDateFormatted}</strong></span>
               <button 
                 onClick={() => handleSetPreset(todayDay, todayMonth, todayYear)}
                 className="ml-2 flex items-center gap-1 text-[11px] font-bold text-amber-700 hover:text-amber-900 bg-amber-200/50 hover:bg-amber-200 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
               >
                 <RotateCcw size={12} />
-                <span>Reset to Today</span>
+                <span>Today</span>
               </button>
             </div>
           )}
         </div>
-
         {/* Right Side: Date Picker Popup & Export Button */}
         <div className="flex items-center gap-3">
           {/* Interactive Date Picker with Calendar Popup */}
@@ -620,7 +817,40 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Top 6 KPI Stat Cards Grid */}
+      {/* Selected Project Scope Banner */}
+      {currentSelectedProject && (
+        <div className="bg-gradient-to-r from-blue-900 via-slate-900 to-slate-900 text-white p-4 rounded-2xl border border-blue-800/60 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/40 text-blue-300 flex items-center justify-center flex-shrink-0 font-bold text-xs font-mono">
+              {currentSelectedProject.inquiryCode || currentSelectedProject.id}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold tracking-widest text-blue-300 uppercase">ACTIVE SCOPE:</span>
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/70 border border-emerald-800/80 px-2 py-0.5 rounded-md">
+                  Confirmed Order
+                </span>
+              </div>
+              <h2 className="text-sm font-extrabold text-white tracking-wide mt-0.5">
+                {currentSelectedProject.project} <span className="text-slate-400 font-normal">| {currentSelectedProject.client}</span>
+              </h2>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 border-t md:border-t-0 md:border-l border-slate-700/80 pt-2 md:pt-0 md:pl-4 text-xs">
+            <div>
+              <span className="text-[10px] text-slate-400 block font-medium">Project Progress</span>
+              <span className="font-extrabold text-white text-sm">{stats.overallProgress}% Complete</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 block font-medium">Active Department</span>
+              <span className="font-bold text-blue-300 text-xs uppercase">{stats.currentPhase}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Top 6 KPI Stat Cards Grid — project-scoped */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
 
         {/* Card 1: OVERALL PROGRESS */}
@@ -632,9 +862,8 @@ export default function Dashboard() {
             </div>
             <div className="mt-[-8px]">
               <span className="text-2xl font-extrabold text-slate-900 tracking-tight">{stats.overallProgress}%</span>
-              <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 mt-1">
-                <span>↑</span>
-                <span>+8.3% vs last month</span>
+              <div className="flex items-center gap-1 text-[11px] font-semibold mt-1 text-slate-500">
+                <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded-md">{stats.tasksCompleted}/{stats.totalTasks} tasks</span>
               </div>
             </div>
           </div>
@@ -645,17 +874,16 @@ export default function Dashboard() {
         <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between h-[155px] relative overflow-hidden">
           <div>
             <div className="flex items-start justify-between">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">CURRENT PHASE</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ACTIVE DEPT.</span>
               <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
                 <Wrench size={18} />
               </div>
             </div>
             <div className="mt-[-2px]">
-              <span className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">{stats.currentPhase}</span>
-              <p className="text-[11px] font-medium text-slate-400 mt-1">Active department</p>
+              <span className="text-base font-extrabold text-slate-900 tracking-tight uppercase leading-tight block">{stats.currentPhase}</span>
+              <p className="text-[11px] font-medium text-slate-400 mt-1">{stats.deptsInProgress} dept{stats.deptsInProgress !== 1 ? 's' : ''} in progress · {stats.deptsDone} done</p>
             </div>
           </div>
-          {/* Subtle Gear Watermark in background */}
           <div className="absolute -right-3 -bottom-3 text-slate-100/90 pointer-events-none z-0">
             <Settings size={76} strokeWidth={1.2} />
           </div>
@@ -670,62 +898,61 @@ export default function Dashboard() {
             </div>
             <div className="mt-[-8px]">
               <span className="text-2xl font-extrabold text-slate-900 tracking-tight">{stats.tasksCompleted} / {stats.totalTasks}</span>
-              <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 mt-1">
-                <span>↑</span>
-                <span>+3 tasks vs yesterday</span>
-              </div>
+              <p className="text-[11px] font-medium text-slate-400 mt-1">{stats.activeTasks} tasks remaining</p>
             </div>
           </div>
           <MiniBarChart barColor="bg-emerald-400" />
         </div>
 
-        {/* Card 4: STAFF ATTENDANCE */}
+        {/* Card 4: ASSIGNED TEAM */}
         <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between h-[155px]">
           <div>
             <div className="flex items-start justify-between">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">STAFF ATTENDANCE</span>
-              <CircularProgress percentage={stats.attendancePercentage} strokeColor="stroke-indigo-500" />
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ASSIGNED TEAM</span>
+              <CircularProgress percentage={stats.attendancePct} strokeColor="stroke-indigo-500" />
             </div>
             <div className="mt-[-8px]">
-              <span className="text-2xl font-extrabold text-slate-900 tracking-tight">7 / 8</span>
-              <p className="text-[11px] font-semibold text-indigo-600 mt-1">87.5% present today</p>
+              <span className="text-2xl font-extrabold text-slate-900 tracking-tight">{stats.presentStaff} / {stats.assignedStaff}</span>
+              <p className="text-[11px] font-semibold text-indigo-600 mt-1">{stats.attendancePct}% present today</p>
             </div>
           </div>
           <MiniBarChart barColor="bg-indigo-400" />
         </div>
 
-        {/* Card 5: ACTIVE TASKS */}
+        {/* Card 5: OPEN TASKS */}
         <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between h-[155px]">
           <div>
             <div className="flex items-start justify-between">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ACTIVE TASKS</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">OPEN TASKS</span>
               <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
                 <ClipboardList size={18} />
               </div>
             </div>
             <div className="mt-[-2px]">
               <span className="text-2xl font-extrabold text-slate-900 tracking-tight">{stats.activeTasks}</span>
-              <p className="text-[11px] font-medium text-slate-400 mt-1">Open across all departments</p>
+              <p className="text-[11px] font-medium text-slate-400 mt-1">
+                Across {stats.activePhaseCount} active dept{stats.activePhaseCount !== 1 ? 's' : ''}
+              </p>
             </div>
           </div>
           <MiniBarChart barColor="bg-amber-400" />
         </div>
 
-        {/* Card 6: RUNNING JOBS */}
+        {/* Card 6: DEPTS DONE */}
         <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between h-[155px]">
           <div>
             <div className="flex items-start justify-between">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">RUNNING JOBS</span>
-              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center flex-shrink-0">
-                <Briefcase size={18} />
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">DEPTS DONE</span>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                <CheckCircle size={18} />
               </div>
             </div>
             <div className="mt-[-2px]">
-              <span className="text-2xl font-extrabold text-slate-900 tracking-tight">{stats.runningJobs}</span>
-              <p className="text-[11px] font-medium text-slate-400 mt-1">Active manufacturing jobs</p>
+              <span className="text-2xl font-extrabold text-slate-900 tracking-tight">{stats.deptsDone} / {phases.length}</span>
+              <p className="text-[11px] font-medium text-slate-400 mt-1">{stats.deptsNotStarted} not yet started</p>
             </div>
           </div>
-          <MiniBarChart barColor="bg-rose-400" />
+          <MiniBarChart barColor="bg-emerald-400" />
         </div>
 
       </div>
@@ -740,7 +967,13 @@ export default function Dashboard() {
               <span>Production Flow & Phases Overview</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Live status of task completion and department progress across manufacturing phases
+              {currentSelectedProject
+                ? <><span className="font-semibold text-blue-600">[{currentSelectedProject.inquiryCode || currentSelectedProject.id}] {currentSelectedProject.project}</span> — {currentSelectedProject.client}
+                  <span className="mx-1.5 text-slate-300">|</span>
+                  {stats.tasksCompleted}/{stats.totalTasks} tasks · {stats.deptsDone} dept{stats.deptsDone !== 1 ? 's' : ''} complete
+                </>
+                : 'Live status of task completion and department progress across manufacturing phases'
+              }
             </p>
           </div>
 
@@ -780,7 +1013,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Phase Pipeline Flow Diagram (Styled exactly like Image 2) */}
+        {/* Phase Pipeline Flow Diagram */}
         <div className="relative overflow-x-auto pb-4 pt-2 scrollbar-thin scrollbar-thumb-slate-200">
           <div className="flex items-center justify-between min-w-[840px] px-4">
             {filteredPhases.map((phase, idx) => {
@@ -790,63 +1023,107 @@ export default function Dashboard() {
               const isSelected = phase.id === selectedPhaseId;
               const Icon = phase.icon;
 
+              // Find original index (filteredPhases may be a subset)
+              const originalIdx = phases.findIndex(p => p.id === phase.id);
+              // LOCKED if any previous phase is not 100% complete
+              const isLocked = phases
+                .slice(0, originalIdx)
+                .some(p => !p.tasks.every(t => t.completed));
+              const isDone = percentage === 100;
+              const isActive = !isLocked && !isDone && completedCount > 0;
+
               return (
                 <React.Fragment key={phase.id}>
                   {/* Phase Node */}
-                  <div className="flex flex-col items-center text-center group cursor-pointer" onClick={() => setSelectedPhaseId(phase.id)}>
+                  <div
+                    className={`flex flex-col items-center text-center group ${
+                      isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                    }`}
+                    onClick={() => !isLocked && setSelectedPhaseId(phase.id)}
+                    title={isLocked ? 'Complete the previous department first' : phase.name}
+                  >
                     {/* Badge Icon with Progress Ring */}
                     <div className="relative mb-3">
-                      {/* Outer Ring for Active Selection */}
                       <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${
-                        isSelected 
-                          ? 'ring-4 ring-blue-500/20 shadow-lg scale-105' 
-                          : 'hover:scale-105'
+                        isSelected && !isLocked
+                          ? 'ring-4 ring-blue-500/20 shadow-lg scale-105'
+                          : !isLocked ? 'hover:scale-105' : ''
                       }`}>
-                        {/* Circular progress overlay ring around icon */}
+                        {/* Circular progress ring */}
                         <svg className="absolute inset-0 w-16 h-16 transform -rotate-90">
-                          <circle cx="32" cy="32" r="28" className="stroke-slate-100" strokeWidth="3" fill="transparent" />
-                          <circle 
-                            cx="32" 
-                            cy="32" 
-                            r="28" 
-                            className={percentage === 100 ? 'stroke-emerald-500' : isSelected ? 'stroke-blue-600' : 'stroke-blue-400/60'} 
-                            strokeWidth="3.5" 
-                            strokeDasharray={2 * Math.PI * 28} 
-                            strokeDashoffset={2 * Math.PI * 28 - (percentage / 100) * (2 * Math.PI * 28)} 
-                            strokeLinecap="round" 
-                            fill="transparent" 
+                          <circle cx="32" cy="32" r="28"
+                            className={isLocked ? 'stroke-slate-200' : 'stroke-slate-100'}
+                            strokeWidth="3" fill="transparent" />
+                          <circle
+                            cx="32" cy="32" r="28"
+                            className={
+                              isLocked   ? 'stroke-slate-300' :
+                              isDone     ? 'stroke-emerald-500' :
+                              isSelected ? 'stroke-blue-600' :
+                                           'stroke-blue-400/60'
+                            }
+                            strokeWidth="3.5"
+                            strokeDasharray={2 * Math.PI * 28}
+                            strokeDashoffset={2 * Math.PI * 28 - (percentage / 100) * (2 * Math.PI * 28)}
+                            strokeLinecap="round"
+                            fill="transparent"
                           />
                         </svg>
 
                         {/* Inner Circle Badge */}
-                        <div className={`w-12 h-12 rounded-full ${phase.bgColor} ${phase.color} flex items-center justify-center shadow-xs`}>
-                          <Icon size={20} />
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-xs ${
+                          isLocked
+                            ? 'bg-slate-100 text-slate-400'
+                            : `${phase.bgColor} ${phase.color}`
+                        }`}>
+                          {isLocked
+                            ? <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            : <Icon size={20} />
+                          }
                         </div>
                       </div>
                     </div>
 
                     {/* Phase Name */}
                     <span className={`text-xs font-bold transition-colors max-w-[110px] truncate ${
-                      isSelected ? 'text-blue-600 font-extrabold' : 'text-slate-800 group-hover:text-blue-600'
+                      isLocked   ? 'text-slate-400' :
+                      isSelected ? 'text-blue-600 font-extrabold' :
+                                   'text-slate-800 group-hover:text-blue-600'
                     }`}>
                       {phase.shortName}
                     </span>
 
-                    {/* Tasks Completed Ratio Display (e.g. 3 / 6 Tasks or 5 / 7 Tasks) */}
+                    {/* Tasks Ratio or LOCKED badge */}
                     <div className="mt-1 flex flex-col items-center">
-                      <span className="text-sm font-extrabold text-slate-900 tracking-tight">
-                        {completedCount} / {totalCount}
-                      </span>
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                        {percentage === 100 ? 'Done' : 'Tasks Completed'}
-                      </span>
+                      {isLocked ? (
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded-md">Locked</span>
+                      ) : (
+                        <>
+                          <span className="text-sm font-extrabold text-slate-900 tracking-tight">
+                            {completedCount} / {totalCount}
+                          </span>
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                            isDone   ? 'text-emerald-500' :
+                            isActive ? 'text-blue-500' :
+                                       'text-slate-400'
+                          }`}>
+                            {isDone ? 'Done' : isActive ? 'In Progress' : 'Not Started'}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  {/* Connecting Arrow between Phases */}
+                  {/* Connecting Arrow — red dashed when locked */}
                   {idx < filteredPhases.length - 1 && (
-                    <div className="flex-1 flex justify-center items-center px-1 text-slate-300">
-                      <ChevronRight size={18} strokeWidth={2.5} className="text-slate-300" />
+                    <div className="flex-1 flex justify-center items-center px-1">
+                      {(() => {
+                        const nextOrigIdx = phases.findIndex(p => p.id === filteredPhases[idx + 1].id);
+                        const nextLocked = phases.slice(0, nextOrigIdx).some(p => !p.tasks.every(t => t.completed));
+                        return nextLocked
+                          ? <ChevronRight size={18} strokeWidth={2} className="text-slate-200" />
+                          : <ChevronRight size={18} strokeWidth={2.5} className="text-slate-300" />;
+                      })()}
                     </div>
                   )}
                 </React.Fragment>
@@ -905,42 +1182,67 @@ export default function Dashboard() {
             
             {/* Task Checklist (Spans 2 columns) */}
             <div className="md:col-span-2 space-y-2">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-2">
-                Phase Task Checklist ({activePhaseData.tasks.filter(t => t.completed).length}/{activePhaseData.tasks.length})
-              </span>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {activePhaseData.tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    onClick={() => handleToggleTask(activePhaseData.id, task.id)}
-                    className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer select-none ${
-                      task.completed
-                        ? 'bg-white border-slate-200/80 shadow-xs hover:border-blue-300'
-                        : 'bg-white/60 border-slate-200 text-slate-600 hover:bg-white hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className={`text-xs font-extrabold px-2 py-0.5 rounded-md ${
-                        task.completed ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'
-                      }`}>
-                        {task.id}
+              {(() => {
+                const activePhaseOrigIdx = phases.findIndex(p => p.id === activePhaseData.id);
+                const phaseIsLocked = phases
+                  .slice(0, activePhaseOrigIdx)
+                  .some(p => !p.tasks.every(t => t.completed));
+
+                return (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Phase Task Checklist ({activePhaseData.tasks.filter(t => t.completed).length}/{activePhaseData.tasks.length})
                       </span>
-                      <span className={`text-xs font-semibold truncate ${
-                        task.completed ? 'text-slate-800 line-through decoration-slate-300' : 'text-slate-700'
-                      }`}>
-                        {task.name}
-                      </span>
+                      {phaseIsLocked && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                          Complete previous department first
+                        </span>
+                      )}
                     </div>
 
-                    {task.completed ? (
-                      <CheckSquare size={17} className="text-blue-600 flex-shrink-0 ml-2" />
-                    ) : (
-                      <Square size={17} className="text-slate-300 hover:text-slate-400 flex-shrink-0 ml-2" />
-                    )}
-                  </div>
-                ))}
-              </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {activePhaseData.tasks.map((task) => (
+                        <div
+                          key={task.id}
+                          onClick={() => !phaseIsLocked && handleToggleTask(activePhaseData.id, task.id)}
+                          className={`flex items-center justify-between p-3 rounded-xl border transition-all select-none ${
+                            phaseIsLocked
+                              ? 'bg-slate-50 border-slate-100 opacity-50 cursor-not-allowed'
+                              : task.completed
+                                ? 'bg-white border-slate-200/80 shadow-xs hover:border-blue-300 cursor-pointer'
+                                : 'bg-white/60 border-slate-200 text-slate-600 hover:bg-white hover:border-slate-300 cursor-pointer'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className={`text-xs font-extrabold px-2 py-0.5 rounded-md ${
+                              phaseIsLocked ? 'bg-slate-100 text-slate-400' :
+                              task.completed ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {task.id}
+                            </span>
+                            <span className={`text-xs font-semibold truncate ${
+                              phaseIsLocked ? 'text-slate-400' :
+                              task.completed ? 'text-slate-800 line-through decoration-slate-300' : 'text-slate-700'
+                            }`}>
+                              {task.name}
+                            </span>
+                          </div>
+
+                          {phaseIsLocked ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 flex-shrink-0 ml-2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                          ) : task.completed ? (
+                            <CheckSquare size={17} className="text-blue-600 flex-shrink-0 ml-2" />
+                          ) : (
+                            <Square size={17} className="text-slate-300 hover:text-slate-400 flex-shrink-0 ml-2" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Remark Box (Right column - exact requirement from Image 1) */}

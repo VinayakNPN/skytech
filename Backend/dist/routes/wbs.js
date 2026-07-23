@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const prisma_1 = require("../db/prisma");
 const mockData_1 = require("../data/mockData");
+const validators_1 = require("../validators");
 const router = (0, express_1.Router)();
 // GET all WBS phases with tasks from Database
 router.get('/', async (req, res) => {
@@ -28,7 +29,7 @@ router.get('/', async (req, res) => {
     }
 });
 // POST add new task to WBS phase in Database
-router.post('/tasks', async (req, res) => {
+router.post('/tasks', (0, validators_1.validateBody)(validators_1.createWBSTaskSchema), async (req, res) => {
     try {
         let { wbsCode, name, phaseId, inquiryId, owner, planHours, status } = req.body;
         // Resolve inquiryId if inquiryCode string (e.g. INQ_01) was passed

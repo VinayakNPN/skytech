@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -27,15 +28,17 @@ async function main() {
   console.log('[Seed] Inquiries seeded successfully.');
 
   // 2. Seed Employees
+  const defaultPasswordHash = await bcrypt.hash('password123', 10);
+  
   const employeesData = [
-    { empCode: 'EMP-01', name: 'Vinayak NPN', email: 'vinayak@skytech.com', department: 'Management', designation: 'Program Manager', role: 'Admin', status: 'Active' },
-    { empCode: 'EMP-02', name: 'Amol M.', email: 'amol@skytech.com', department: 'Design & Costing', designation: 'Senior Design Engineer', role: 'Engineer', status: 'Active' },
-    { empCode: 'EMP-03', name: 'Suresh K.', email: 'suresh@skytech.com', department: 'Mechanical Dept.', designation: 'Fabrication Lead', role: 'Supervisor', status: 'Active' },
-    { empCode: 'EMP-04', name: 'Pankaj R.', email: 'pankaj@skytech.com', department: 'Assembly & Busbar Dept.', designation: 'Assembly Tech', role: 'Operator', status: 'Active' },
-    { empCode: 'EMP-05', name: 'Rajesh V.', email: 'rajesh@skytech.com', department: 'Electrical Dept.', designation: 'Lead Electrician', role: 'Operator', status: 'Active' },
-    { empCode: 'EMP-06', name: 'Kiran T.', email: 'kiran@skytech.com', department: 'Testing Dept.', designation: 'QC Inspector', role: 'Supervisor', status: 'Active' },
-    { empCode: 'EMP-07', name: 'Mahesh P.', email: 'mahesh@skytech.com', department: 'Store Dept.', designation: 'Store Manager', role: 'Supervisor', status: 'Active' },
-    { empCode: 'EMP-08', name: 'Rohan D.', email: 'rohan@skytech.com', department: 'Support & Service Dept.', designation: 'Field Service Engineer', role: 'Engineer', status: 'Active' }
+    { empCode: 'EMP-01', name: 'Vinayak NPN', email: 'vinayak@skytech.com', department: 'Management', designation: 'Program Manager', role: 'Admin', status: 'Active', passwordHash: defaultPasswordHash, isAdmin: true, permissions: JSON.stringify({}) },
+    { empCode: 'EMP-02', name: 'Amol M.', email: 'amol@skytech.com', department: 'Design & Costing', designation: 'Senior Design Engineer', role: 'Engineer', status: 'Active', passwordHash: defaultPasswordHash, isAdmin: false, permissions: JSON.stringify({ dashboard: { read: false, write: false, delete: false }, employeeHub: { read: true, write: true, delete: false } }) },
+    { empCode: 'EMP-03', name: 'Suresh K.', email: 'suresh@skytech.com', department: 'Mechanical Dept.', designation: 'Fabrication Lead', role: 'Supervisor', status: 'Active', passwordHash: defaultPasswordHash, isAdmin: false, permissions: JSON.stringify({ dashboard: { read: false, write: false, delete: false }, employeeHub: { read: true, write: true, delete: false } }) },
+    { empCode: 'EMP-04', name: 'Pankaj R.', email: 'pankaj@skytech.com', department: 'Assembly & Busbar Dept.', designation: 'Assembly Tech', role: 'Operator', status: 'Active', passwordHash: defaultPasswordHash, isAdmin: false, permissions: JSON.stringify({ dashboard: { read: false, write: false, delete: false }, employeeHub: { read: true, write: true, delete: false } }) },
+    { empCode: 'EMP-05', name: 'Rajesh V.', email: 'rajesh@skytech.com', department: 'Electrical Dept.', designation: 'Lead Electrician', role: 'Operator', status: 'Active', passwordHash: defaultPasswordHash, isAdmin: false, permissions: JSON.stringify({ dashboard: { read: false, write: false, delete: false }, employeeHub: { read: true, write: true, delete: false } }) },
+    { empCode: 'EMP-06', name: 'Kiran T.', email: 'kiran@skytech.com', department: 'Testing Dept.', designation: 'QC Inspector', role: 'Supervisor', status: 'Active', passwordHash: defaultPasswordHash, isAdmin: false, permissions: JSON.stringify({ dashboard: { read: false, write: false, delete: false }, employeeHub: { read: true, write: true, delete: false } }) },
+    { empCode: 'EMP-07', name: 'Mahesh P.', email: 'mahesh@skytech.com', department: 'Store Dept.', designation: 'Store Manager', role: 'Supervisor', status: 'Active', passwordHash: defaultPasswordHash, isAdmin: false, permissions: JSON.stringify({ dashboard: { read: false, write: false, delete: false }, employeeHub: { read: true, write: true, delete: false }, inventory: { read: true, write: true, delete: false } }) },
+    { empCode: 'EMP-08', name: 'Rohan D.', email: 'rohan@skytech.com', department: 'Support & Service Dept.', designation: 'Field Service Engineer', role: 'Engineer', status: 'Active', passwordHash: defaultPasswordHash, isAdmin: false, permissions: JSON.stringify({ dashboard: { read: false, write: false, delete: false }, employeeHub: { read: true, write: true, delete: false } }) }
   ];
 
   for (const emp of employeesData) {

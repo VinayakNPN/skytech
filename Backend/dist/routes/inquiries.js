@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const prisma_1 = require("../db/prisma");
 const mockData_1 = require("../data/mockData");
+const validators_1 = require("../validators");
 const router = (0, express_1.Router)();
 // GET all inquiries from Database
 router.get('/', async (req, res) => {
@@ -17,6 +18,23 @@ router.get('/', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch inquiries' });
     }
 });
+// GET all confirmed active (non-hold) projects for Dashboard & WBS dropdowns
+router.get('/confirmed', async (req, res) => {
+    try {
+        const projects = await prisma_1.prisma.inquiry.findMany({
+            where: {
+                status: 'Confirmed',
+                holdStatus: false
+            },
+            orderBy: { inquiryCode: 'asc' }
+        });
+        res.json(projects);
+    }
+    catch (err) {
+        console.error('[DB Error] GET /api/inquiries/confirmed:', err);
+        res.status(500).json({ error: 'Failed to fetch confirmed projects' });
+    }
+});
 // GET inquiry stats summary from Database
 router.get('/stats', async (req, res) => {
     try {
@@ -25,7 +43,10 @@ router.get('/stats', async (req, res) => {
             where: { status: { in: ['Offer Sent', 'Confirmed'] } }
         });
         const confirmed = await prisma_1.prisma.inquiry.count({
-            where: { status: 'Confirmed' }
+            where: { status: 'Confirmed', holdStatus: false }
+        });
+        const onHold = await prisma_1.prisma.inquiry.count({
+            where: { holdStatus: true }
         });
         const unconfirmed = await prisma_1.prisma.inquiry.count({
             where: { status: { in: ['Unconfirmed', 'Inquiry Received'] } }
@@ -35,6 +56,7 @@ router.get('/stats', async (req, res) => {
             totalInquiries: total,
             offersSent,
             confirmedOrders: confirmed,
+            onHold,
             unconfirmed,
             winRate
         });
@@ -45,10 +67,19 @@ router.get('/stats', async (req, res) => {
     }
 });
 // POST create new inquiry in Database
-router.post('/', async (req, res) => {
+router.post('/', (0, validators_1.validateBody)(validators_1.createInquirySchema), async (req, res) => {
     try {
-        const count = await prisma_1.prisma.inquiry.count();
-        const inquiryCode = `INQ_${String(count + 1).padStart(2, '0')}`;
+        const lastInquiry = await prisma_1.prisma.inquiry.findFirst({
+            orderBy: { createdAt: 'desc' }
+        });
+        let nextNum = 1;
+        if (lastInquiry && lastInquiry.inquiryCode) {
+            const match = lastInquiry.inquiryCode.match(/(\d+)$/);
+            if (match) {
+                nextNum = parseInt(match[1], 10) + 1;
+            }
+        }
+        const inquiryCode = `INQ_${String(nextNum).padStart(2, '0')}`;
         const newInquiry = await prisma_1.prisma.inquiry.create({
             data: {
                 inquiryCode,
@@ -60,6 +91,7 @@ router.post('/', async (req, res) => {
                 phone: req.body.phone || '',
                 date: req.body.date ? new Date(req.body.date) : new Date(),
                 status: req.body.status || 'Inquiry Received',
+                holdStatus: false,
                 remarks: req.body.remarks || '',
                 weeksAgo: 1
             }
@@ -70,6 +102,68 @@ router.post('/', async (req, res) => {
     catch (err) {
         console.error('[DB Error] POST /api/inquiries:', err);
         res.status(500).json({ error: 'Failed to create inquiry' });
+    }
+});
+// PUT Hold inquiry (R2)
+router.put('/:id/hold', async (req, res) => {
+    try {
+        const targetId = req.params.id;
+        const existing = await prisma_1.prisma.inquiry.findFirst({
+            where: {
+                OR: [
+                    { id: targetId },
+                    { inquiryCode: targetId }
+                ]
+            }
+        });
+        if (!existing) {
+            return res.status(404).json({ error: 'Inquiry not found' });
+        }
+        const updated = await prisma_1.prisma.inquiry.update({
+            where: { id: existing.id },
+            data: {
+                holdStatus: true,
+                holdReason: req.body.reason || 'Project placed on hold by manager',
+                heldAt: new Date()
+            }
+        });
+        (0, mockData_1.logSystemEvent)('API Server', `Project ${updated.inquiryCode} placed on HOLD: ${updated.holdReason}`, 'warn');
+        res.json(updated);
+    }
+    catch (err) {
+        console.error('[DB Error] PUT /api/inquiries/:id/hold:', err);
+        res.status(500).json({ error: 'Failed to hold project' });
+    }
+});
+// PUT Resume inquiry (R2)
+router.put('/:id/resume', async (req, res) => {
+    try {
+        const targetId = req.params.id;
+        const existing = await prisma_1.prisma.inquiry.findFirst({
+            where: {
+                OR: [
+                    { id: targetId },
+                    { inquiryCode: targetId }
+                ]
+            }
+        });
+        if (!existing) {
+            return res.status(404).json({ error: 'Inquiry not found' });
+        }
+        const updated = await prisma_1.prisma.inquiry.update({
+            where: { id: existing.id },
+            data: {
+                holdStatus: false,
+                holdReason: null,
+                heldAt: null
+            }
+        });
+        (0, mockData_1.logSystemEvent)('API Server', `Project ${updated.inquiryCode} RESUMED from hold`, 'info');
+        res.json(updated);
+    }
+    catch (err) {
+        console.error('[DB Error] PUT /api/inquiries/:id/resume:', err);
+        res.status(500).json({ error: 'Failed to resume project' });
     }
 });
 // PUT update inquiry in Database
@@ -85,10 +179,12 @@ router.put('/:id', async (req, res) => {
                 ...(req.body.email !== undefined && { email: req.body.email }),
                 ...(req.body.phone !== undefined && { phone: req.body.phone }),
                 ...(req.body.status && { status: req.body.status }),
+                ...(req.body.holdStatus !== undefined && { holdStatus: req.body.holdStatus }),
+                ...(req.body.holdReason !== undefined && { holdReason: req.body.holdReason }),
                 ...(req.body.remarks !== undefined && { remarks: req.body.remarks })
             }
         });
-        (0, mockData_1.logSystemEvent)('API Server', `Inquiry ${updated.inquiryCode} updated in DB to ${updated.status}`, 'info');
+        (0, mockData_1.logSystemEvent)('API Server', `Inquiry ${updated.inquiryCode} updated in DB`, 'info');
         res.json(updated);
     }
     catch (err) {

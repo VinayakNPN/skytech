@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../db/prisma';
 import { logSystemEvent } from '../data/mockData';
+import { validateBody, createWBSTaskSchema } from '../validators';
 
 const router = Router();
 
@@ -28,7 +29,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST add new task to WBS phase in Database
-router.post('/tasks', async (req, res) => {
+router.post('/tasks', validateBody(createWBSTaskSchema), async (req, res) => {
   try {
     let { wbsCode, name, phaseId, inquiryId, owner, planHours, status } = req.body;
     
@@ -103,6 +104,115 @@ router.delete('/tasks/:id', async (req, res) => {
   } catch (err: any) {
     console.error('[DB Error] DELETE /api/wbs/tasks/:id:', err);
     res.status(500).json({ error: 'Failed to delete WBS task' });
+  }
+});
+
+
+// GET WBS stats
+router.get('/stats', async (req, res) => {
+  try {
+    const { inquiryId } = req.query;
+    let whereClause: any = inquiryId ? { inquiryId: String(inquiryId) } : {};
+
+    if (req.user && !['Admin', 'Manager', 'HR'].includes(req.user.role)) {
+      const teams = await prisma.projectTeam.findMany({ where: { employeeId: req.user.id } });
+      const assignedIds = teams.map(t => t.inquiryId);
+      if (inquiryId && !assignedIds.includes(String(inquiryId))) {
+        return res.status(403).json({ error: 'Not assigned to this project' });
+      }
+      if (!inquiryId) {
+        whereClause.inquiryId = { in: assignedIds };
+      }
+    }
+
+    const tasks = await prisma.wBSTask.findMany({ where: whereClause });
+    const phases = await prisma.wBSPhase.findMany({ orderBy: { wbsCode: 'asc' } });
+
+    const totalTasks = tasks.length;
+    const doneTasks = tasks.filter(t => t.status === 'DONE').length;
+    const inProgressTasks = tasks.filter(t => t.status === 'IN PROGRESS').length;
+    const notStartedTasks = tasks.filter(t => t.status === 'NOT STARTED').length;
+
+    let overallCompletionPct = 0;
+    if (totalTasks > 0) {
+      overallCompletionPct = Math.round((doneTasks / totalTasks) * 100);
+    }
+
+    // Determine active phase
+    let activePhase = 'None';
+    const activeTask = tasks.find(t => t.status === 'IN PROGRESS');
+    if (activeTask) {
+      const p = phases.find(ph => ph.id === activeTask.phaseId);
+      if (p) activePhase = p.name;
+    } else {
+      const nextTask = tasks.find(t => t.status === 'NOT STARTED');
+      if (nextTask) {
+        const p = phases.find(ph => ph.id === nextTask.phaseId);
+        if (p) activePhase = p.name;
+      } else if (totalTasks > 0 && doneTasks === totalTasks) {
+        activePhase = 'Completed';
+      }
+    }
+
+    const totalPlanHours = tasks.reduce((sum, t) => sum + (t.planHours || 0), 0);
+    const totalActualHours = tasks.reduce((sum, t) => sum + (t.actualHours || 0), 0);
+
+    res.json({
+      totalTasks,
+      doneTasks,
+      inProgressTasks,
+      notStartedTasks,
+      overallCompletionPct,
+      activePhase,
+      totalPlanHours,
+      totalActualHours
+    });
+  } catch (err: any) {
+    console.error('[DB Error] GET /api/wbs/stats:', err);
+    res.status(500).json({ error: 'Failed to fetch WBS stats' });
+  }
+});
+
+// GET WBS phases for pipeline visualization
+router.get('/phases', async (req, res) => {
+  try {
+    const { inquiryId } = req.query;
+    
+    // Default fetch all phases
+    const phases = await prisma.wBSPhase.findMany({
+      orderBy: { wbsCode: 'asc' }
+    });
+
+    let whereClause: any = inquiryId ? { inquiryId: String(inquiryId) } : {};
+
+    if (req.user && !['Admin', 'Manager', 'HR'].includes(req.user.role)) {
+      const teams = await prisma.projectTeam.findMany({ where: { employeeId: req.user.id } });
+      const assignedIds = teams.map(t => t.inquiryId);
+      if (inquiryId && !assignedIds.includes(String(inquiryId))) {
+        return res.status(403).json({ error: 'Not assigned to this project' });
+      }
+      if (!inquiryId) {
+        whereClause.inquiryId = { in: assignedIds };
+      }
+    }
+
+    const tasks = await prisma.wBSTask.findMany({ where: whereClause });
+
+    // Map tasks into phases
+    const phasesWithTasks = phases.map(phase => {
+      const phaseTasks = tasks.filter(t => t.phaseId === phase.id);
+      return {
+        ...phase,
+        tasks: phaseTasks,
+        completed: phaseTasks.length > 0 && phaseTasks.every(t => t.status === 'DONE'),
+        inProgress: phaseTasks.some(t => t.status === 'IN PROGRESS')
+      };
+    });
+
+    res.json(phasesWithTasks);
+  } catch (err: any) {
+    console.error('[DB Error] GET /api/wbs/phases:', err);
+    res.status(500).json({ error: 'Failed to fetch WBS phases pipeline' });
   }
 });
 

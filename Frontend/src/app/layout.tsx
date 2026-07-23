@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import DashboardLayout from "@/components/DashboardLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,7 +39,11 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col bg-[#F8FAFC]">
-        <DashboardLayout>{children}</DashboardLayout>
+        <AuthProvider>
+          <DashboardLayout>
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </DashboardLayout>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -2,22 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, 
-  Search, 
-  Mail, 
-  Tag, 
-  UserCheck, 
-  UserX, 
-  UserMinus,
-  Briefcase,
-  Layers,
-  Activity,
-  Plus,
-  X,
-  UserPlus,
-  Sparkles
+  Users, Search, Mail, Tag, UserCheck, UserX, UserMinus,
+  Briefcase, Layers, Activity, Plus, X, UserPlus, Sparkles
 } from 'lucide-react';
 import { API_BASE_URL } from '@/config/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Employee {
   id: string;
@@ -40,7 +29,19 @@ const PREDEFINED_DEPARTMENTS = [
   'Management'
 ];
 
+const DEFAULT_PERMISSIONS = {
+  dashboard: { read: false, write: false, delete: false },
+  inquiries: { read: false, write: false, delete: false },
+  wbs: { read: false, write: false, delete: false },
+  inventory: { read: false, write: false, delete: false },
+  employees: { read: false, write: false, delete: false },
+  employeeHub: { read: true, write: false, delete: false },
+  reports: { read: false, write: false, delete: false },
+  leaveApproval: { canApprove: false }
+};
+
 export default function EmployeeDirectory() {
+  const { user } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('All');
@@ -54,11 +55,19 @@ export default function EmployeeDirectory() {
   const [newEmpDesignation, setNewEmpDesignation] = useState('Production Engineer');
   const [newEmpRole, setNewEmpRole] = useState('Engineer');
   const [newEmpStatus, setNewEmpStatus] = useState<'Active' | 'On Leave' | 'Suspended'>('Active');
+  
+  // Auth & Permissions State
+  const [newEmpPassword, setNewEmpPassword] = useState('password123'); // Default generated password
+  const [newEmpIsAdmin, setNewEmpIsAdmin] = useState(false);
+  const [newEmpPermissions, setNewEmpPermissions] = useState(DEFAULT_PERMISSIONS);
 
-  // Fetch employees
   const fetchEmployees = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/employees`);
+      const res = await fetch(`${API_BASE_URL}/api/employees`, {
+        headers: {
+          'Authorization': `Bearer ${getCookie('token')}`
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         setEmployees(data);
@@ -74,12 +83,14 @@ export default function EmployeeDirectory() {
     fetchEmployees();
   }, []);
 
-  // Update employee status
   const handleStatusChange = async (empId: string, newStatus: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/employees/${empId}/status`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getCookie('token')}`
+        },
         body: JSON.stringify({ status: newStatus })
       });
       if (res.ok) {
@@ -90,22 +101,35 @@ export default function EmployeeDirectory() {
     }
   };
 
-  // Add New Employee Handler
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEmpName.trim() || !newEmpEmail.trim()) return;
+    if (!newEmpName.trim() || !newEmpEmail.trim() || !newEmpPassword.trim()) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/employees`, {
+      // Generate a temporary EmpCode for the form submission
+      // In production, the backend might handle generating this, but since we require it in the backend auth route:
+      const lastEmp = employees.length > 0 ? employees[employees.length - 1] : null;
+      let nextNum = 1; // Assuming manual generation since we replaced the POST /api/employees logic
+      // Simplistic ID generation:
+      const empCode = `EMP-${String(Math.floor(Math.random() * 900) + 100).padStart(3, '0')}`;
+
+      const res = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getCookie('token')}`
+        },
         body: JSON.stringify({
+          empCode,
           name: newEmpName,
           email: newEmpEmail,
+          password: newEmpPassword,
           department: newEmpDept,
           designation: newEmpDesignation,
           role: newEmpRole,
-          status: newEmpStatus
+          status: newEmpStatus,
+          isAdmin: newEmpIsAdmin,
+          permissions: newEmpPermissions
         })
       });
 
@@ -115,14 +139,26 @@ export default function EmployeeDirectory() {
         // Reset Form
         setNewEmpName('');
         setNewEmpEmail('');
-        setNewEmpDept('Mechanical Dept.');
-        setNewEmpDesignation('Production Engineer');
-        setNewEmpRole('Engineer');
-        setNewEmpStatus('Active');
+        setNewEmpPassword('password123');
+        setNewEmpIsAdmin(false);
+        setNewEmpPermissions(DEFAULT_PERMISSIONS);
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to register");
       }
     } catch (err) {
       console.error('Error adding employee:', err);
     }
+  };
+
+  const handlePermChange = (module: string, action: string, checked: boolean) => {
+    setNewEmpPermissions(prev => ({
+      ...prev,
+      [module]: {
+        ...(prev as any)[module],
+        [action]: checked
+      }
+    }));
   };
 
   const getStatusBadge = (status: 'Active' | 'On Leave' | 'Suspended') => {
@@ -136,10 +172,8 @@ export default function EmployeeDirectory() {
     }
   };
 
-  // Unique departments for filtering
   const departments = ['All', ...Array.from(new Set(employees.map(e => e.department)))];
 
-  // Filter employees list
   const filteredEmployees = employees.filter(e => {
     const matchesSearch = 
       e.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -161,7 +195,6 @@ export default function EmployeeDirectory() {
   return (
     <div className="space-y-6 animate-fade-in">
       
-      {/* Page Heading & Add Employee Action */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
         <div>
           <div className="flex items-center gap-2 text-blue-600 font-bold text-xs uppercase tracking-wider">
@@ -176,20 +209,20 @@ export default function EmployeeDirectory() {
           </p>
         </div>
 
-        {/* Primary Action Button (+ Add New Employee) */}
         <div>
-          <button
-            type="button"
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer active:scale-95"
-          >
-            <UserPlus size={16} />
-            <span>+ Add New Employee</span>
-          </button>
+          {user?.isAdmin && (
+            <button
+              type="button"
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer active:scale-95"
+            >
+              <UserPlus size={16} />
+              <span>+ Add New Employee</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row gap-4">
         <div className="flex-1 relative">
           <Search className="absolute left-3.5 top-3 text-slate-400" size={16} />
@@ -217,12 +250,10 @@ export default function EmployeeDirectory() {
         </div>
       </div>
 
-      {/* Employee Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredEmployees.map(emp => (
           <div key={emp.id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-4">
             
-            {/* Top row: Initials & Base info */}
             <div className="space-y-3">
               <div className="flex justify-between items-start gap-2">
                 <div className="flex items-center gap-3">
@@ -239,7 +270,6 @@ export default function EmployeeDirectory() {
                 </span>
               </div>
 
-              {/* Attributes */}
               <div className="space-y-2 border-t border-slate-100 pt-3 text-xs text-slate-600 font-medium">
                 <div className="flex items-center gap-2">
                   <Mail size={13} className="text-slate-400" />
@@ -260,7 +290,6 @@ export default function EmployeeDirectory() {
               </div>
             </div>
 
-            {/* Bottom Row Actions */}
             <div className="flex gap-2 pt-2 border-t border-slate-100">
               {emp.status === 'Active' ? (
                 <button
@@ -287,13 +316,11 @@ export default function EmployeeDirectory() {
         ))}
       </div>
 
-      {/* ADD NEW EMPLOYEE MODAL DIALOG */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
             
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 sticky top-0 z-10">
               <div className="flex items-center gap-2">
                 <UserPlus size={18} className="text-blue-600" />
                 <h3 className="text-base font-bold text-slate-900">Register New Employee Account</h3>
@@ -307,41 +334,38 @@ export default function EmployeeDirectory() {
               </button>
             </div>
 
-            {/* Modal Form */}
-            <form onSubmit={handleAddEmployee} className="p-6 space-y-4">
+            <form onSubmit={handleAddEmployee} className="p-6 space-y-6">
               
-              {/* Full Name */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Rajesh Kumar"
-                  value={newEmpName}
-                  onChange={(e) => setNewEmpName(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Rajesh Kumar"
+                    value={newEmpName}
+                    onChange={(e) => setNewEmpName(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="e.g. rajesh@skytech.com"
+                    value={newEmpEmail}
+                    onChange={(e) => setNewEmpEmail(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
               </div>
 
-              {/* Email Address */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="e.g. rajesh@skytech.com"
-                  value={newEmpEmail}
-                  onChange={(e) => setNewEmpEmail(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-
-              {/* Department & Designation */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
                     Department
@@ -372,43 +396,89 @@ export default function EmployeeDirectory() {
                 </div>
               </div>
 
-              {/* RBAC Role & Status */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-                    System RBAC Role
+                    Initial Password
                   </label>
-                  <select
-                    value={newEmpRole}
-                    onChange={(e) => setNewEmpRole(e.target.value)}
-                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                  >
-                    <option value="Admin">Admin</option>
-                    <option value="Engineer">Engineer</option>
-                    <option value="Supervisor">Supervisor</option>
-                    <option value="Operator">Operator</option>
-                    <option value="Viewer">Viewer</option>
-                  </select>
+                  <input
+                    type="text"
+                    required
+                    value={newEmpPassword}
+                    onChange={(e) => setNewEmpPassword(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-                    Initial Account Status
+                <div className="flex items-center mt-6 gap-2">
+                  <input
+                    type="checkbox"
+                    id="isAdmin"
+                    checked={newEmpIsAdmin}
+                    onChange={(e) => setNewEmpIsAdmin(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="isAdmin" className="text-sm font-bold text-slate-800 cursor-pointer">
+                    System Administrator (Bypasses all permission checks)
                   </label>
-                  <select
-                    value={newEmpStatus}
-                    onChange={(e) => setNewEmpStatus(e.target.value as any)}
-                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="On Leave">On Leave</option>
-                    <option value="Suspended">Suspended</option>
-                  </select>
                 </div>
               </div>
 
+              {/* Permissions Matrix */}
+              {!newEmpIsAdmin && (
+                <div className="border border-slate-200 rounded-xl overflow-hidden mt-6">
+                  <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+                    <h4 className="text-sm font-bold text-slate-800">Module Permissions</h4>
+                    <p className="text-xs text-slate-500">Configure what this user can view and edit</p>
+                  </div>
+                  <div className="p-4 bg-white">
+                    <table className="w-full text-left text-sm text-slate-600">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-xs uppercase tracking-wider">
+                          <th className="pb-2">Module</th>
+                          <th className="pb-2 text-center">Read</th>
+                          <th className="pb-2 text-center">Write</th>
+                          <th className="pb-2 text-center">Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {['dashboard', 'inquiries', 'wbs', 'inventory', 'employees', 'employeeHub', 'reports'].map((module) => (
+                          <tr key={module} className="border-b border-slate-50 last:border-0">
+                            <td className="py-2 font-medium text-slate-800 capitalize">{module}</td>
+                            <td className="py-2 text-center">
+                              <input 
+                                type="checkbox" 
+                                checked={(newEmpPermissions as any)[module].read}
+                                onChange={(e) => handlePermChange(module, 'read', e.target.checked)}
+                                className="w-4 h-4 text-blue-600 rounded" 
+                              />
+                            </td>
+                            <td className="py-2 text-center">
+                              <input 
+                                type="checkbox" 
+                                checked={(newEmpPermissions as any)[module].write}
+                                onChange={(e) => handlePermChange(module, 'write', e.target.checked)}
+                                className="w-4 h-4 text-blue-600 rounded" 
+                              />
+                            </td>
+                            <td className="py-2 text-center">
+                              <input 
+                                type="checkbox" 
+                                checked={(newEmpPermissions as any)[module].delete}
+                                onChange={(e) => handlePermChange(module, 'delete', e.target.checked)}
+                                className="w-4 h-4 text-blue-600 rounded" 
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {/* Modal Footer */}
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3 sticky bottom-0 bg-white">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
@@ -432,4 +502,13 @@ export default function EmployeeDirectory() {
 
     </div>
   );
+}
+
+// Helper for client-side cookies
+function getCookie(name: string) {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
 }

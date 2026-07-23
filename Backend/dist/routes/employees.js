@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const prisma_1 = require("../db/prisma");
 const mockData_1 = require("../data/mockData");
+const validators_1 = require("../validators");
 const router = (0, express_1.Router)();
 // GET all employees from Database
 router.get('/', async (req, res) => {
@@ -33,18 +34,27 @@ router.put('/:id/status', async (req, res) => {
     }
 });
 // POST create new employee account in Database
-router.post('/', async (req, res) => {
+router.post('/', (0, validators_1.validateBody)(validators_1.createEmployeeSchema), async (req, res) => {
     try {
-        const count = await prisma_1.prisma.employee.count();
-        const empCode = `EMP-0${count + 1}`;
+        const lastEmp = await prisma_1.prisma.employee.findFirst({
+            orderBy: { createdAt: 'desc' }
+        });
+        let nextNum = 1;
+        if (lastEmp && lastEmp.empCode) {
+            const match = lastEmp.empCode.match(/(\d+)$/);
+            if (match) {
+                nextNum = parseInt(match[1], 10) + 1;
+            }
+        }
+        const empCode = `EMP-${String(nextNum).padStart(3, '0')}`;
         const newEmp = await prisma_1.prisma.employee.create({
             data: {
                 empCode,
-                name: req.body.name || 'New Employee',
-                email: req.body.email || 'employee@skytech.com',
-                department: req.body.department || 'Mechanical Dept.',
-                designation: req.body.designation || 'Engineer',
-                role: req.body.role || 'Operator',
+                name: req.body.name,
+                email: req.body.email,
+                department: req.body.department,
+                designation: req.body.designation,
+                role: req.body.role || 'Engineer',
                 status: req.body.status || 'Active'
             }
         });

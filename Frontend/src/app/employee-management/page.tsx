@@ -735,10 +735,10 @@ export default function EmployeeManagementPrototype() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#F8FAFC] font-sans antialiased text-slate-800">
+    <div className="flex flex-col h-screen overflow-hidden bg-[#F8FAFC] font-sans antialiased text-slate-800">
       
       {/* Top Banner Header */}
-      <header className="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 z-20">
+      <header className="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 z-20 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
           <span className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
@@ -764,14 +764,17 @@ export default function EmployeeManagementPrototype() {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         
         {/* Custom Navy Sidebar */}
-        <aside className="w-64 bg-[#111C24] text-slate-200 flex-shrink-0 flex flex-col justify-between border-r border-slate-800">
+        <aside className="w-64 fixed inset-y-0 left-0 mt-12 bg-[#111C24] text-slate-200 flex-shrink-0 flex flex-col justify-between border-r border-slate-800 overflow-y-auto z-10 pb-12">
           <div>
             {/* Logo/Identity Section */}
-            <div className="h-20 flex flex-col justify-center px-6 bg-[#0B1319] border-b border-slate-800">
-              <span className="text-sm font-bold tracking-wider text-white">Skytech Switchgear</span>
+            <div 
+              onClick={() => setActiveTab('dashboard')}
+              className="h-20 flex flex-col justify-center px-6 bg-[#0B1319] hover:bg-[#0E1820] border-b border-slate-800 cursor-pointer transition-colors group"
+            >
+              <span className="text-sm font-bold tracking-wider text-white group-hover:text-blue-400 transition-colors">Skytech Switchgear</span>
               <span className="text-[11px] text-slate-400 tracking-widest font-medium uppercase mt-0.5">Employee Management</span>
             </div>
 
@@ -880,7 +883,7 @@ export default function EmployeeManagementPrototype() {
         </aside>
 
         {/* Content Panel Area */}
-        <main className="flex-1 overflow-y-auto p-8 bg-slate-50">
+        <main className="flex-1 overflow-y-auto p-8 bg-slate-50 ml-64">
           
           {loading ? (
             <div className="flex flex-col items-center justify-center h-[60vh] gap-4">

@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import { prisma } from '../db/prisma';
 import { logSystemEvent } from '../data/mockData';
+import { validateBody, createEmployeeSchema } from '../validators';
+import { authorize } from '../middleware/authorize';
 
 const router = Router();
 
 // GET all employees from Database
-router.get('/', async (req, res) => {
+router.get('/', authorize('employees', 'read'), async (req, res) => {
   try {
     const employees = await prisma.employee.findMany({
       orderBy: { empCode: 'asc' }
@@ -18,7 +20,7 @@ router.get('/', async (req, res) => {
 });
 
 // PUT update employee status in Database
-router.put('/:id/status', async (req, res) => {
+router.put('/:id/status', authorize('employees', 'write'), async (req, res) => {
   try {
     const updated = await prisma.employee.update({
       where: { id: req.params.id },
@@ -33,19 +35,29 @@ router.put('/:id/status', async (req, res) => {
 });
 
 // POST create new employee account in Database
-router.post('/', async (req, res) => {
+router.post('/', authorize('employees', 'write'), validateBody(createEmployeeSchema), async (req, res) => {
   try {
-    const count = await prisma.employee.count();
-    const empCode = `EMP-0${count + 1}`;
+    const lastEmp = await prisma.employee.findFirst({
+      orderBy: { empCode: 'desc' }
+    });
+
+    let nextNum = 1;
+    if (lastEmp && lastEmp.empCode) {
+      const match = lastEmp.empCode.match(/(\d+)$/);
+      if (match) {
+        nextNum = parseInt(match[1], 10) + 1;
+      }
+    }
+    const empCode = `EMP-${String(nextNum).padStart(3, '0')}`;
 
     const newEmp = await prisma.employee.create({
       data: {
         empCode,
-        name: req.body.name || 'New Employee',
-        email: req.body.email || 'employee@skytech.com',
-        department: req.body.department || 'Mechanical Dept.',
-        designation: req.body.designation || 'Engineer',
-        role: req.body.role || 'Operator',
+        name: req.body.name,
+        email: req.body.email,
+        department: req.body.department,
+        designation: req.body.designation,
+        role: req.body.role || 'Engineer',
         status: req.body.status || 'Active'
       }
     });

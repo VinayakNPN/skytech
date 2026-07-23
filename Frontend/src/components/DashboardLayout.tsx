@@ -20,6 +20,7 @@ import {
   Package
 } from 'lucide-react';
 import { API_BASE_URL } from '@/config/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -55,20 +56,31 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }, [sidebarOpen, mounted]);
 
   // User Profile States
+  const { user: authUser, loading, can, logout } = useAuth();
+  const isAdmin = authUser?.isAdmin || false;
   const [profileOpen, setProfileOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [showSignOutToast, setShowSignOutToast] = useState(false);
-  const [user, setUser] = useState({
-    name: 'Vinayak NPN',
-    role: 'Administrator',
-    email: 'vinayak@skytech.com',
-    initials: 'VN'
-  });
+
+  const user = authUser ? {
+    name: authUser.name,
+    role: authUser.role,
+    email: authUser.email,
+    initials: authUser.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)
+  } : {
+    name: 'Guest User',
+    role: 'Viewer',
+    email: '',
+    initials: '?'
+  };
+
   const [tempUser, setTempUser] = useState(user);
 
   useEffect(() => {
-    setTempUser(user);
-  }, [user]);
+    if (authUser) {
+      setTempUser(user);
+    }
+  }, [authUser]);
 
   // Click outside to close profile dropdown
   useEffect(() => {
@@ -101,8 +113,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => clearInterval(interval);
   }, []);
 
-  // Bypass standard layout for employee management sub-application
-  if (pathname?.startsWith('/employee-management')) {
+  // Bypass standard layout for employee management sub-application or login page
+  if (pathname?.startsWith('/employee-management') || pathname === '/login') {
     return <>{children}</>;
   }
 
@@ -111,21 +123,20 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     {
       title: 'PROGRAMME',
       items: [
-        { id: 'dashboard', name: 'Dashboard', href: '/', icon: LayoutDashboard },
-        { id: 'inquiries', name: 'Inquiry Management', href: '/inquiries', icon: Send },
-        { id: 'wbs', name: 'WBS', href: '/wbs', icon: Workflow },
-        { id: 'orders', name: 'Order Management', href: '/orders', icon: ClipboardList },
-        { id: 'inventory', name: 'Inventory Management', href: '/inventory', icon: Package },
+        ...(can('dashboard', 'read') ? [{ id: 'dashboard', name: 'Dashboard', href: '/', icon: LayoutDashboard }] : []),
+        ...(can('inquiries', 'read') ? [{ id: 'inquiries', name: 'Inquiry Management', href: '/inquiries', icon: Send }] : []),
+        ...(can('wbs', 'read') ? [{ id: 'wbs', name: 'WBS', href: '/wbs', icon: Workflow }] : []),
+        ...(can('inventory', 'read') ? [{ id: 'inventory', name: 'Inventory Management', href: '/inventory', icon: Package }] : []),
       ]
     },
     {
       title: 'MANAGEMENT',
       items: [
-        { id: 'employees', name: 'Employee Directory', href: '/employees', icon: Users },
-        { id: 'employee-management', name: 'Employee Hub (Prototype)', href: '/employee-management', icon: Users },
+        ...(can('employees', 'read') ? [{ id: 'employees', name: 'Employee Directory', href: '/employees', icon: Users }] : []),
+        ...(can('employeeHub', 'read') ? [{ id: 'employee-management', name: 'Employee Hub (Prototype)', href: '/employee-management', icon: Users }] : []),
       ]
     }
-  ];
+  ].filter(section => section.items.length > 0);
 
   const allNavItems = navSections.flatMap(s => s.items);
 
@@ -133,6 +144,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const active = allNavItems.find(item => item.href === pathname);
     return active ? active.name : 'Skytech Program Management System';
   };
+
+  if (loading) return <div className="h-screen w-screen flex items-center justify-center bg-[#F8FAFC]">Loading...</div>;
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] text-slate-800 font-sans overflow-hidden">
@@ -318,8 +331,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       type="button"
                       onClick={() => {
                         setProfileOpen(false);
-                        setShowSignOutToast(true);
-                        setTimeout(() => setShowSignOutToast(false), 3000);
+                        logout();
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors text-left"
                     >
@@ -404,7 +416,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    setUser(tempUser);
+                    // Update user in backend here
                     setEditModalOpen(false);
                   }}
                   className="px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md transition-colors"

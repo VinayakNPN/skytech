@@ -15,6 +15,9 @@ const employeeManagement_1 = __importDefault(require("./routes/employeeManagemen
 const inquiries_1 = __importDefault(require("./routes/inquiries"));
 const wbs_1 = __importDefault(require("./routes/wbs"));
 const mockData_1 = require("./data/mockData");
+const logger_1 = require("./utils/logger");
+const errorHandler_1 = require("./middleware/errorHandler");
+const notFound_1 = require("./middleware/notFound");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
@@ -29,7 +32,6 @@ const allowedOrigins = [
 ];
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps, curl, server-to-server)
         if (!origin)
             return callback(null, true);
         const cleanOrigin = origin.trim();
@@ -58,8 +60,11 @@ app.use('/api/wbs', wbs_1.default);
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', service: 'Skytech Program Management System API' });
 });
+// 404 & Error Handling Middleware
+app.use(notFound_1.notFound);
+app.use(errorHandler_1.errorHandler);
 // Start Server
 app.listen(PORT, () => {
-    console.log(`[Server] SkyTech PM Backend running on http://localhost:${PORT}`);
+    logger_1.logger.info(`[Server] SkyTech PM Backend running on http://localhost:${PORT}`);
     (0, mockData_1.logSystemEvent)('API Server', `Express backend initialized on port ${PORT}`, 'info');
 });

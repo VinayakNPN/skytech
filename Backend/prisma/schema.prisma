@@ -19,13 +19,20 @@ model Inquiry {
   phone         String?
   date          DateTime  @default(now())
   status        String    // "Inquiry Received", "Offer Sent", "Confirmed", "Unconfirmed"
+  holdStatus    Boolean   @default(false)
+  holdReason    String?
+  heldAt        DateTime?
   remarks       String?
+  startDate     DateTime?
+  estimatedDuration Int?      // Duration in days
+  projectLead   String?
   weeksAgo      Int       @default(1)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   orders        Order[]
   wbsTasks      WBSTask[]
+  teamMembers   ProjectTeam[]
 }
 
 // 2. Confirmed Orders & Manufacturing Jobs
@@ -99,19 +106,22 @@ model PhaseChecklist {
 
 // 5. Staff & Employee Directory (With Microsoft OAuth SSO support)
 model Employee {
-  id          String   @id @default(uuid())
-  empCode     String   @unique
-  name        String
-  email       String   @unique
-  microsoftId String?  @unique // Microsoft OAuth SSO Identifier
-  department  String
-  designation String
-  role        String   // "Admin", "Engineer", "Supervisor", "Operator", "Viewer"
-  status      String   // "Active", "On Leave", "Suspended"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(uuid())
+  empCode      String   @unique
+  name         String
+  email        String   @unique
+  passwordHash String
+  department   String
+  designation  String
+  role         String
+  isAdmin      Boolean  @default(false)
+  permissions  String   @default("{}")
+  status       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  attendances Attendance[]
+  attendances   Attendance[]
+  projectTeams  ProjectTeam[]
 }
 
 model Attendance {
@@ -135,4 +145,18 @@ model MaterialRequest {
   requestedBy   String
   requestedDate DateTime @default(now())
   status        String   // "Pending", "Approved", "Rejected"
+}
+
+// 7. Project Teams and Resource Allocation
+model ProjectTeam {
+  id          String   @id @default(uuid())
+  inquiryId   String
+  inquiry     Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  role        String   // "Lead", "Member"
+  assignedAt  DateTime @default(now())
+  assignedBy  String?  // Admin/Manager ID who assigned them
+
+  @@unique([inquiryId, employeeId])
 }

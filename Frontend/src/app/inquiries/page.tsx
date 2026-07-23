@@ -21,9 +21,14 @@ import {
   Calendar, 
   DollarSign, 
   AlertTriangle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  PauseCircle,
+  PlayCircle,
+  Users
 } from 'lucide-react';
 import { API_BASE_URL } from '@/config/api';
+import { AssignTeamModal } from '@/components/AssignTeamModal';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Inquiry {
   id: string;
@@ -36,8 +41,22 @@ interface Inquiry {
   phone: string;
   date: string;
   status: 'Inquiry Received' | 'Offer Sent' | 'Confirmed' | 'Unconfirmed';
+  holdStatus?: boolean;
+  holdReason?: string;
+  heldAt?: string;
   remarks: string;
 }
+
+const DEFAULT_INQUIRIES: Inquiry[] = [
+  { id: 'INQ_01', inquiryCode: 'INQ_01', client: 'Reliance Green Energy', project: '132kV Substation Panel', amount: '1850000', contactPerson: 'Rajesh Sharma', email: 'rajesh@reliance.com', phone: '+91 98250 12345', date: '2026-07-18', status: 'Confirmed', holdStatus: false, remarks: 'Design approved' },
+  { id: 'INQ_02', inquiryCode: 'INQ_02', client: 'Tata Steel Infra', project: 'Control Desk & PCC Panel', amount: '1220000', contactPerson: 'Amit Patel', email: 'amit@tatasteel.com', phone: '+91 98795 67890', date: '2026-07-16', status: 'Offer Sent', holdStatus: false, remarks: 'Quotation sent' },
+  { id: 'INQ_03', inquiryCode: 'INQ_03', client: 'Adani Solar Power', project: 'MCC Panel System', amount: '2400000', contactPerson: 'Suresh Verma', email: 'suresh@adani.com', phone: '+91 99090 11223', date: '2026-07-14', status: 'Confirmed', holdStatus: false, remarks: 'PO received' },
+  { id: 'INQ_04', inquiryCode: 'INQ_04', client: 'L&T Construction', project: 'Distribution Board DB-04', amount: '840000', contactPerson: 'Vikas Mehta', email: 'vikas@lnt.com', phone: '+91 94260 44556', date: '2026-07-12', status: 'Unconfirmed', holdStatus: false, remarks: 'Follow up required' },
+  { id: 'INQ_05', inquiryCode: 'INQ_05', client: 'Torrent Power Pvt Ltd', project: 'APFC Panel 440V', amount: '1510000', contactPerson: 'Pankaj Joshi', email: 'pankaj@torrent.com', phone: '+91 98240 33445', date: '2026-07-09', status: 'Confirmed', holdStatus: false, remarks: 'In testing phase' },
+  { id: 'INQ_06', inquiryCode: 'INQ_06', client: 'JSW Energy Ltd', project: 'Busduct System 2000A', amount: '3100000', contactPerson: 'Karan Shah', email: 'karan@jsw.in', phone: '+91 97129 88776', date: '2026-07-05', status: 'Offer Sent', holdStatus: false, remarks: 'Revised quote requested' },
+  { id: 'INQ_07', inquiryCode: 'INQ_07', client: 'BHEL Engineering', project: 'Generator Control Panel', amount: '2280000', contactPerson: 'Ramesh Gupta', email: 'ramesh@bhel.in', phone: '+91 99789 22334', date: '2026-06-28', status: 'Confirmed', holdStatus: false, remarks: 'Assembly started' },
+  { id: 'INQ_08', inquiryCode: 'INQ_08', client: 'GMR Airports Pvt Ltd', project: 'Main Switchboard MSB-1', amount: '1940000', contactPerson: 'Deepak Kumar', email: 'deepak@gmr.in', phone: '+91 98980 55667', date: '2026-06-24', status: 'Unconfirmed', holdStatus: false, remarks: 'Initial discussion' }
+];
 
 export default function InquiriesPage() {
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
@@ -45,10 +64,16 @@ export default function InquiriesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
+  const { isAdmin, isManager } = useAuth();
+
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isHoldModalOpen, setIsHoldModalOpen] = useState(false);
+  const [assignTeamInquiryId, setAssignTeamInquiryId] = useState<string | null>(null);
+  const [holdingInquiry, setHoldingInquiry] = useState<Inquiry | null>(null);
+  const [holdReasonInput, setHoldReasonInput] = useState('');
 
   // Form State
   const [formInquiry, setFormInquiry] = useState<Partial<Inquiry>>({
@@ -71,18 +96,60 @@ export default function InquiriesPage() {
       const res = await fetch(`${API_BASE_URL}/api/inquiries`);
       if (res.ok) {
         const data = await res.json();
-        setInquiries(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setInquiries(data);
+          return;
+        }
       }
     } catch (err) {
       console.error('Failed to fetch inquiries:', err);
     } finally {
       setLoading(false);
     }
+    setInquiries(prev => prev.length > 0 ? prev : DEFAULT_INQUIRIES);
   };
 
   useEffect(() => {
     fetchInquiries();
   }, []);
+
+  // Open Hold Modal
+  const openHoldModal = (inq: Inquiry) => {
+    setHoldingInquiry(inq);
+    setHoldReasonInput('');
+    setIsHoldModalOpen(true);
+  };
+
+  // Confirm Hold Inquiry Handler (R2)
+  const handleConfirmHoldInquiry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!holdingInquiry) return;
+    const targetId = holdingInquiry.inquiryCode || holdingInquiry.id;
+    const reasonText = holdReasonInput.trim() || 'Project placed on hold by manager';
+
+    // Optimistic UI update immediately
+    setInquiries(prev => prev.map(inq =>
+      (inq.id === holdingInquiry.id || (inq.inquiryCode && inq.inquiryCode === holdingInquiry.inquiryCode))
+        ? { ...inq, holdStatus: true, holdReason: reasonText }
+        : inq
+    ));
+    setIsHoldModalOpen(false);
+    setHoldingInquiry(null);
+    setHoldReasonInput('');
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/inquiries/${targetId}/hold`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reasonText })
+      });
+      if (res.ok) {
+        await fetchInquiries();
+      }
+    } catch (err) {
+      console.error('Failed to hold inquiry on server:', err);
+    }
+  };
 
   // Add Inquiry Handler
   const handleAddInquiry = async (e: React.FormEvent) => {
@@ -149,6 +216,40 @@ export default function InquiriesPage() {
     }
   };
 
+  // Hold Inquiry Handler (R2)
+  const handleHoldInquiry = async (inquiryId: string) => {
+    const reason = prompt('Enter reason for placing this project on hold:') || 'Project placed on hold by manager';
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/inquiries/${inquiryId}/hold`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      });
+      if (res.ok) fetchInquiries();
+    } catch (err) {
+      console.error('Failed to hold inquiry:', err);
+    }
+  };
+
+  // Resume Inquiry Handler (R2)
+  const handleResumeInquiry = async (inquiryId: string) => {
+    // Optimistic UI update immediately
+    setInquiries(prev => prev.map(inq =>
+      (inq.id === inquiryId || (inq.inquiryCode && inq.inquiryCode === inquiryId))
+        ? { ...inq, holdStatus: false, holdReason: undefined }
+        : inq
+    ));
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/inquiries/${inquiryId}/resume`, {
+        method: 'PUT'
+      });
+      if (res.ok) fetchInquiries();
+    } catch (err) {
+      console.error('Failed to resume inquiry on server:', err);
+    }
+  };
+
   // Export Inquiries to Excel (.xlsx) file handler
   const handleExportInquiriesExcel = () => {
     if (inquiries.length === 0) {
@@ -165,7 +266,8 @@ export default function InquiriesPage() {
       'Email': inq.email,
       'Phone': inq.phone,
       'Inquiry Date': inq.date,
-      'Status': inq.status,
+      'Status': inq.holdStatus ? 'On Hold' : inq.status,
+      'Hold Reason': inq.holdReason || '',
       'Remarks': inq.remarks
     }));
 
@@ -180,6 +282,7 @@ export default function InquiriesPage() {
       { wch: 18 },
       { wch: 15 },
       { wch: 18 },
+      { wch: 25 },
       { wch: 40 }
     ];
 
@@ -192,9 +295,10 @@ export default function InquiriesPage() {
 
   // Dynamic Statistics Calculations
   const totalCount = inquiries.length;
-  const offersSentCount = inquiries.filter(i => i.status === 'Offer Sent' || i.status === 'Confirmed').length;
-  const confirmedCount = inquiries.filter(i => i.status === 'Confirmed').length;
-  const unconfirmedCount = inquiries.filter(i => i.status === 'Unconfirmed' || i.status === 'Inquiry Received').length;
+  const offersSentCount = inquiries.filter(i => (i.status === 'Offer Sent' || i.status === 'Confirmed') && !i.holdStatus).length;
+  const confirmedCount = inquiries.filter(i => i.status === 'Confirmed' && !i.holdStatus).length;
+  const onHoldCount = inquiries.filter(i => i.holdStatus).length;
+  const unconfirmedCount = inquiries.filter(i => (i.status === 'Unconfirmed' || i.status === 'Inquiry Received') && !i.holdStatus).length;
   const winRatePercentage = offersSentCount > 0 ? Math.round((confirmedCount / offersSentCount) * 100) : 0;
 
   // Filtered List (Sorted Ascending by Inquiry Code)
@@ -204,8 +308,20 @@ export default function InquiriesPage() {
                             i.project.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             i.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             (i.inquiryCode && i.inquiryCode.toLowerCase().includes(searchQuery.toLowerCase()));
-      const matchesStatus = statusFilter === 'ALL' || i.status === statusFilter;
-      return matchesSearch && matchesStatus;
+
+      if (!matchesSearch) return false;
+
+      // On Hold Tab: ONLY show on-hold projects
+      if (statusFilter === 'ON_HOLD') {
+        return Boolean(i.holdStatus);
+      }
+
+      // Active Tabs (ALL, Confirmed, Offer Sent, Unconfirmed, Inquiry Received): EXCLUDE on-hold projects
+      if (i.holdStatus) {
+        return false;
+      }
+
+      return statusFilter === 'ALL' || i.status === statusFilter;
     })
     .sort((a, b) => (a.inquiryCode || a.id).localeCompare(b.inquiryCode || b.id, undefined, { numeric: true }));
 
@@ -447,6 +563,13 @@ export default function InquiriesPage() {
             >
               Unconfirmed
             </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('ON_HOLD')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${statusFilter === 'ON_HOLD' ? 'bg-amber-500 text-white shadow-xs font-bold' : 'hover:text-slate-900 text-amber-700'}`}
+            >
+              On Hold ({onHoldCount})
+            </button>
           </div>
 
         </div>
@@ -461,19 +584,24 @@ export default function InquiriesPage() {
                 <th className="py-3 px-4 w-36 text-right">QUOTED AMOUNT</th>
                 <th className="py-3 px-4 w-48">CONTACT DETAILS</th>
                 <th className="py-3 px-4 w-28 text-center">DATE</th>
-                <th className="py-3 px-4 w-32 text-center">STATUS</th>
-                <th className="py-3 px-4 w-24 text-center">ACTIONS</th>
+                <th className="py-3 px-4 w-36 text-center">STATUS</th>
+                <th className="py-3 px-4 w-28 text-center">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs font-medium">
               {filteredInquiries.length > 0 ? (
                 filteredInquiries.map((inq) => (
-                  <tr key={inq.id} className="bg-white hover:bg-slate-50/80 transition-colors text-slate-800">
+                  <tr key={inq.id} className={`transition-colors text-slate-800 ${inq.holdStatus ? 'bg-amber-50/40 hover:bg-amber-50/70' : 'bg-white hover:bg-slate-50/80'}`}>
                     <td className="py-3 px-4 font-mono font-bold text-blue-600">{inq.inquiryCode || inq.id}</td>
                     <td className="py-3 px-4">
                       <div>
                         <span className="font-bold text-slate-900 block text-xs">{inq.client}</span>
                         <span className="text-[11px] text-slate-500 font-medium block">{inq.project}</span>
+                        {inq.holdStatus && inq.holdReason && (
+                          <span className="text-[10px] text-amber-700 italic block mt-0.5">
+                            Hold Reason: {inq.holdReason}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-right font-extrabold text-slate-900 font-mono text-xs">
@@ -487,24 +615,50 @@ export default function InquiriesPage() {
                     </td>
                     <td className="py-3 px-4 text-center text-slate-500 font-medium">{inq.date}</td>
                     <td className="py-3 px-4 text-center">
-                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border inline-flex items-center gap-1 ${
-                        inq.status === 'Confirmed'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : inq.status === 'Offer Sent'
-                          ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                          : inq.status === 'Inquiry Received'
-                          ? 'bg-blue-50 text-blue-700 border-blue-200'
-                          : 'bg-amber-50 text-amber-700 border-amber-200'
-                      }`}>
-                        {inq.status === 'Confirmed' && <CheckCircle size={12} className="text-emerald-600" />}
-                        {inq.status === 'Offer Sent' && <Send size={12} className="text-indigo-600" />}
-                        {inq.status === 'Inquiry Received' && <Layers size={12} className="text-blue-600" />}
-                        {inq.status === 'Unconfirmed' && <Clock size={12} className="text-amber-600" />}
-                        <span>{inq.status}</span>
-                      </span>
+                      {inq.holdStatus ? (
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg border inline-flex items-center gap-1 bg-amber-100 text-amber-900 border-amber-300">
+                          <PauseCircle size={12} className="text-amber-700" />
+                          <span>On Hold</span>
+                        </span>
+                      ) : (
+                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border inline-flex items-center gap-1 ${
+                          inq.status === 'Confirmed'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : inq.status === 'Offer Sent'
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                            : inq.status === 'Inquiry Received'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {inq.status === 'Confirmed' && <CheckCircle size={12} className="text-emerald-600" />}
+                          {inq.status === 'Offer Sent' && <Send size={12} className="text-indigo-600" />}
+                          {inq.status === 'Inquiry Received' && <Layers size={12} className="text-blue-600" />}
+                          {inq.status === 'Unconfirmed' && <Clock size={12} className="text-amber-600" />}
+                          <span>{inq.status}</span>
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1">
+                        {inq.holdStatus ? (
+                          <button
+                            type="button"
+                            onClick={() => handleResumeInquiry(inq.id)}
+                            className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                            title="Resume Project"
+                          >
+                            <PlayCircle size={14} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openHoldModal(inq)}
+                            className="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                            title="Place Project on Hold"
+                          >
+                            <PauseCircle size={14} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => {
@@ -527,6 +681,16 @@ export default function InquiriesPage() {
                         >
                           <Trash2 size={14} />
                         </button>
+                        {(isAdmin || isManager) && (
+                          <button
+                            type="button"
+                            onClick={() => setAssignTeamInquiryId(inq.id)}
+                            className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                            title="Assign Project Team"
+                          >
+                            <Users size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -879,6 +1043,71 @@ export default function InquiriesPage() {
 
           </div>
         </div>
+      )}
+
+      {/* 4. THEMED HOLD PROJECT MODAL DIALOG (R2) */}
+      {isHoldModalOpen && holdingInquiry && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-amber-50/80">
+              <div className="flex items-center gap-2">
+                <PauseCircle size={20} className="text-amber-600" />
+                <h3 className="text-base font-bold text-slate-900">Place Project on Hold</h3>
+              </div>
+              <button 
+                onClick={() => setIsHoldModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmHoldInquiry} className="p-6 space-y-4">
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200/80 text-xs text-amber-900 font-medium">
+                Placing <strong>[{holdingInquiry.inquiryCode || holdingInquiry.id}] {holdingInquiry.project}</strong> on hold will pause execution and move it into the <strong>On Hold</strong> list.
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                  Reason for Hold
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="e.g. Client requested temporary hold on design approvals..."
+                  value={holdReasonInput}
+                  onChange={(e) => setHoldReasonInput(e.target.value)}
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsHoldModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <PauseCircle size={14} />
+                  <span>Confirm Hold</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. ASSIGN TEAM MODAL */}
+      {assignTeamInquiryId && (
+        <AssignTeamModal 
+          inquiryId={assignTeamInquiryId} 
+          onClose={() => setAssignTeamInquiryId(null)} 
+        />
       )}
 
     </div>

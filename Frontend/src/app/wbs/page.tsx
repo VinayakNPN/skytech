@@ -27,9 +27,11 @@ import {
   Send,
   Briefcase,
   CheckCircle,
-  Upload
+  Upload,
+  Users
 } from 'lucide-react';
 import { ExcelUploadModal } from '@/components/ExcelUploadModal';
+import { AssignEmployeeModal } from '@/components/AssignEmployeeModal';
 
 interface WBSTask {
   id: string;
@@ -44,6 +46,7 @@ interface WBSTask {
   actualHours: number;
   status: 'DONE' | 'IN PROGRESS' | 'NOT STARTED';
   progress: number;
+  assignments?: any[];
 }
 
 interface WBSPhase {
@@ -272,6 +275,9 @@ export default function WBSPage() {
   // Delete Task Confirmation Modal State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingTask, setDeletingTask] = useState<WBSTask | null>(null);
+
+  // Assign Staff Modal State
+  const [assigningTask, setAssigningTask] = useState<WBSTask | null>(null);
 
   // Fetch WBS tree from Backend API (Database)
   const fetchWBS = async () => {
@@ -943,9 +949,18 @@ export default function WBSPage() {
                             <span className="text-[10px] font-bold text-slate-600">{task.progress}%</span>
                           </div>
                         </td>
-                        {/* ACTION COLUMN: Pencil Icon (Edit) & Delete Icon (Trash) */}
+                        {/* ACTION COLUMN: Assign, Pencil (Edit) & Delete (Trash) */}
                         <td className="py-2.5 px-4 text-center">
                           <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setAssigningTask(task)}
+                              className="p-1.5 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors cursor-pointer"
+                              title="Assign Staff to Task"
+                            >
+                              <Users size={14} />
+                            </button>
+
                             <button
                               type="button"
                               onClick={() => openEditModal(task)}
@@ -1369,6 +1384,19 @@ export default function WBSPage() {
           fetchWBS();
         }}
       />
+
+      {/* ASSIGN EMPLOYEE MODAL */}
+      {assigningTask && (
+        <AssignEmployeeModal
+          taskId={assigningTask.id}
+          taskName={assigningTask.name}
+          currentAssignments={assigningTask.assignments}
+          onClose={() => setAssigningTask(null)}
+          onUpdate={() => {
+            fetchWBS();
+          }}
+        />
+      )}
 
     </div>
   );

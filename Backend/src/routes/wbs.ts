@@ -17,6 +17,13 @@ router.get('/', async (req, res) => {
           include: {
             inquiry: {
               select: { id: true, inquiryCode: true }
+            },
+            assignments: {
+              include: {
+                employee: {
+                  select: { id: true, empCode: true, name: true, role: true, department: true }
+                }
+              }
             }
           },
           orderBy: { wbsCode: 'asc' }
@@ -28,6 +35,57 @@ router.get('/', async (req, res) => {
   } catch (err: any) {
     console.error('[DB Error] GET /api/wbs:', err);
     res.status(500).json({ error: 'Failed to fetch WBS tree' });
+  }
+});
+
+// POST assign employee to WBS task
+router.post('/tasks/:taskId/assign', async (req, res) => {
+  try {
+    const { employeeId } = req.body;
+    if (!employeeId) return res.status(400).json({ error: 'employeeId is required' });
+
+    const assignment = await prisma.wBSTaskAssignment.upsert({
+      where: {
+        wbsTaskId_employeeId: {
+          wbsTaskId: req.params.taskId,
+          employeeId
+        }
+      },
+      create: {
+        wbsTaskId: req.params.taskId,
+        employeeId
+      },
+      update: {},
+      include: {
+        employee: { select: { id: true, empCode: true, name: true, role: true } }
+      }
+    });
+
+    logSystemEvent('API Server', `Assigned employee ${employeeId} to WBS task ${req.params.taskId}`, 'info');
+    res.status(201).json(assignment);
+  } catch (err: any) {
+    console.error('[DB Error] POST /api/wbs/tasks/:taskId/assign:', err);
+    res.status(500).json({ error: 'Failed to assign employee to task' });
+  }
+});
+
+// DELETE unassign employee from WBS task
+router.delete('/tasks/:taskId/assign/:employeeId', async (req, res) => {
+  try {
+    await prisma.wBSTaskAssignment.delete({
+      where: {
+        wbsTaskId_employeeId: {
+          wbsTaskId: req.params.taskId,
+          employeeId: req.params.employeeId
+        }
+      }
+    });
+
+    logSystemEvent('API Server', `Unassigned employee ${req.params.employeeId} from WBS task ${req.params.taskId}`, 'info');
+    res.json({ message: 'Employee unassigned successfully' });
+  } catch (err: any) {
+    console.error('[DB Error] DELETE /api/wbs/tasks/:taskId/assign/:employeeId:', err);
+    res.status(500).json({ error: 'Failed to unassign employee' });
   }
 });
 

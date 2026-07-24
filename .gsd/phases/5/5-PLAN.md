@@ -1,172 +1,239 @@
 ---
 phase: 5
-plans: 4
+plans: 6
 ---
 
-# Plan 5.1: LLM Engine & Prompt Loader
+# Plan 5.1: Employee Hub Database Schema
 
 ## Objective
-Establish the foundational LLM architecture using an abstract provider interface to route tasks dynamically between Claude and Gemini, and build a YAML-based prompt loading system.
+Update `Backend/prisma/schema.prisma` to include models required for the persistent Employee Hub: `WBSTaskAssignment`, `VisitReport`, `LeaveApplication`, `RunningJob`, and `SalarySlip`, and generate the database migration.
 
 ## Context
-- .gsd/SPEC.md
-- .gsd/ARCHITECTURE.md
-- .gsd/phases/5/RESEARCH.md
+- .gsd/ROADMAP.md
+- Backend/prisma/schema.prisma
 
 ## Tasks
 
 <task type="auto">
-  <name>Implement LLM Providers</name>
-  <files>zeno/ai/providers.py</files>
+  <name>Add Employee Hub Models to Prisma Schema</name>
+  <files>Backend/prisma/schema.prisma</files>
   <action>
-    - Create an `LLMProvider` Protocol with `complete`, `complete_structured`, and `stream` async methods.
-    - Implement `ClaudeProvider` (using `anthropic` package) and `GeminiProvider` (using `google-genai` package).
-    - Implement `ProviderRouter` that initializes providers based on API keys from the environment and routes feature keys (e.g., `rubber_duck`, `intent_slot_fill`) based on `user_profile` config mappings.
-    - IMPORTANT: Ensure all methods use `asyncio`.
+    Add the following models:
+    - `WBSTaskAssignment`: join table between `WBSTask` and `Employee`
+    - `VisitReport`: `employeeId`, `clientName`, `location`, `purpose`, `visitDate`, `remarks`
+    - `LeaveApplication`: `employeeId`, `leaveType`, `fromDate`, `toDate`, `halfDayTime`, `reason`, `status`, `routedToRole`
+    - `RunningJob`: `employeeId`, `inquiryId`, `description`, `progress`, `startDate`, `dueDate`
+    - `SalarySlip`: `employeeId`, `month`, `year`, `basicSalary`, `allowances`, `deductions`, `netSalary`
+    Connect relation fields to `Employee` and `WBSTask`.
   </action>
-  <verify>python -c "from zeno.ai.providers import ProviderRouter; print('Providers loaded')"</verify>
-  <done>LLMProvider protocol and concrete Claude/Gemini implementations are complete and syntactically valid.</done>
+  <verify>npx prisma validate --schema Backend/prisma/schema.prisma</verify>
+  <done>Prisma schema is updated and valid.</done>
 </task>
 
 <task type="auto">
-  <name>Implement Prompt Loader</name>
-  <files>zeno/ai/prompts.py</files>
+  <name>Generate and Apply Migration</name>
+  <files>Backend/prisma/schema.prisma</files>
   <action>
-    - Create a module to load system prompts from YAML files located in `~/Zeno/prompts/`.
-    - Implement a `load_prompt(template_name: str, **kwargs)` function that reads the YAML, parses the text, and formats it using the provided kwargs.
-    - If a prompt file does not exist, it should fallback to a default minimal string or raise a clear error.
+    Run `npx prisma migrate dev --name add_employee_hub_models` from the `Backend` directory.
   </action>
-  <verify>python -c "from zeno.ai.prompts import load_prompt; print('Loader available')"</verify>
-  <done>Prompt loading utility can read from YAML files and interpolate variables.</done>
+  <verify>npx prisma studio --help</verify>
+  <done>Prisma migration applied to SQLite database.</done>
 </task>
 
 ## Success Criteria
-- [ ] Abstract provider routing is functional.
-- [ ] Prompt templates can be decoupled from Python code via YAML files.
+- [ ] Prisma schema contains all required Employee Hub models.
+- [ ] Database migration successfully generated and applied.
 
 ---
 
-# Plan 5.2: Rubber Duck State Machine
+# Plan 5.2: WBS Task Assignment API & UI
 
 ## Objective
-Implement the Hybrid Rubber Duck conversation state machine, combining strict code-driven transitions with conversational LLM language generation.
+Implement backend routes to assign employees to WBS tasks and add an assignment modal component in the WBS dashboard.
 
 ## Context
-- .gsd/phases/5/RESEARCH.md
-- zeno/db.py
+- Backend/src/routes/wbs.ts
+- Frontend/src/app/wbs/page.tsx
 
 ## Tasks
 
 <task type="auto">
-  <name>State Machine & Dataclass</name>
-  <files>zeno/ai/rubber_duck.py</files>
+  <name>Implement Task Assignment API Routes</name>
+  <files>Backend/src/routes/wbs.ts</files>
   <action>
-    - Create the `RubberDuckSession` dataclass with fields: id, state (PROBLEM, CONSTRAINTS, EDGE_CASES, DEPS, CRITERIA, GENERATING), problem_statement, constraints, edge_cases, dependencies, success_criteria, turn_history, slots_complete.
-    - Implement the `process_turn(session, user_input)` method which appends to history, calls the LLM to extract slots into the current state's list/string, and generates the conversational follow-up.
-    - Implement the transition logic: advance state when the current state's completion predicate (e.g., `len(session.constraints) > 0`) is met, or if user asks to skip.
-    - Manage tiered context window (slots always present, last 6 turns sliding window).
+    - Implement `POST /api/wbs/tasks/:taskId/assign` (body: `{ employeeId }`).
+    - Implement `DELETE /api/wbs/tasks/:taskId/assign/:employeeId`.
+    - Ensure `GET /api/wbs` includes task assignments and assigned employee metadata.
   </action>
-  <verify>python -m py_compile zeno/ai/rubber_duck.py</verify>
-  <done>State machine logic properly handles transitions and tiered context generation.</done>
+  <verify>curl -s http://localhost:5000/api/wbs</verify>
+  <done>API routes for task assignment created and working.</done>
 </task>
 
 <task type="auto">
-  <name>DB Serialization</name>
-  <files>zeno/ai/rubber_duck.py, zeno/handlers/sessions.py</files>
+  <name>Build AssignEmployeeModal Component & UI</name>
+  <files>Frontend/src/components/wbs/AssignEmployeeModal.tsx, Frontend/src/app/wbs/page.tsx</files>
   <action>
-    - Ensure `RubberDuckSession` can be serialized to and deserialized from the SQLite `rubber_duck_sessions` table.
-    - Wire the NLP intent `start_rubber_duck` to initialize or resume a session from the DB.
+    - Build `AssignEmployeeModal.tsx` allowing assignment/unassignment of staff.
+    - Wire modal trigger button into each task row in `Frontend/src/app/wbs/page.tsx`.
   </action>
-  <verify>python -c "from zeno.ai.rubber_duck import RubberDuckSession; print('Dataclass wired')"</verify>
-  <done>Session state persists between turns in SQLite.</done>
+  <verify>npm run build --prefix Frontend</verify>
+  <done>WBS UI shows assigned employees and allows managing assignments.</done>
 </task>
 
 ## Success Criteria
-- [ ] Rubber duck sessions persist in the database.
-- [ ] The state machine naturally transitions through all 6 phases.
+- [ ] WBS tasks can be assigned to employees in the DB and UI.
 
 ---
 
-# Plan 5.3: PRD Generation & Task Extraction
+# Plan 5.3: Employee Tasks API & UI (WBS-Aligned)
 
 ## Objective
-Convert a completed Rubber Duck session into a final Markdown PRD and extract actionable tasks directly into the database.
+Derive employee tasks directly from assigned WBS tasks (per client requirement R5), removing standalone task creation.
 
 ## Context
-- .gsd/phases/5/RESEARCH.md
+- Backend/src/routes/employeeManagement.ts
+- Frontend/src/app/employee-management/page.tsx
 
 ## Tasks
 
 <task type="auto">
-  <name>PRD Writer & Dual Parsing</name>
-  <files>zeno/ai/prd_writer.py</files>
+  <name>Implement Employee Tasks API</name>
+  <files>Backend/src/routes/employeeManagement.ts</files>
   <action>
-    - Implement `generate_prd(session)`. It calls the LLM with the full session context, prompting it to output the PRD in Markdown (Part 1), followed by the delimiter `---TASKS---`, followed by a JSON array of task objects (Part 2).
-    - Parse the response: split by `---TASKS---`.
-    - Write Part 1 to `~/Zeno/projects/<slug>/PRD.md`.
+    - Implement `GET /api/employee-management/tasks?employeeId=X`.
+    - Query `WBSTaskAssignment` joining `WBSTask` and `Inquiry` (with `Job` link for `jobNo`).
+    - Return assigned tasks formatted for the employee task view.
   </action>
-  <verify>python -m py_compile zeno/ai/prd_writer.py</verify>
-  <done>The LLM call successfully generates and splits the Markdown and JSON outputs.</done>
+  <verify>curl -s http://localhost:5000/api/employee-management/tasks</verify>
+  <done>Employee tasks endpoint returns WBS-assigned tasks with Job No.</done>
 </task>
 
 <task type="auto">
-  <name>Task DB Insertion</name>
-  <files>zeno/ai/prd_writer.py</files>
+  <name>Update Task Tab UI</name>
+  <files>Frontend/src/app/employee-management/page.tsx</files>
   <action>
-    - Parse the JSON array from Part 2.
-    - Insert the parsed tasks into the SQLite `tasks` table with their metadata (title, priority, estimated_minutes, etc.).
-    - Implement a fallback: if JSON parsing fails, use regex to extract `- [ ]` checkboxes from Part 1 and insert them with default metadata.
-    - Enforce prompt constraint: "Generate tasks only from explicitly stated scope."
+    - Remove the "+ Add Task" button and standalone task creation form from the Tasks tab (per R5).
+    - Connect Task tab to `GET /api/employee-management/tasks`.
+    - Display `Job No` badge on each task item.
   </action>
-  <verify>python -m py_compile zeno/ai/prd_writer.py</verify>
-  <done>Extracted tasks are reliably written to the database with fallback resilience.</done>
+  <verify>npm run build --prefix Frontend</verify>
+  <done>Tasks tab derives exclusively from WBS task assignments.</done>
 </task>
 
 ## Success Criteria
-- [ ] PRD.md is saved to the local filesystem.
-- [ ] Tasks are accurately extracted and inserted into SQLite.
+- [ ] Employee tasks are derived from WBS task assignments.
+- [ ] Standalone task creation is removed.
 
 ---
 
-# Plan 5.4: Morning Briefing Generator
+# Plan 5.4: Attendance & Visit Reports Migration
 
 ## Objective
-Gather necessary context from the database and system, and generate a concise morning briefing using the LLM.
+Migrate Attendance and Visit Reports in Employee Hub from mock data to Prisma DB persistence.
 
 ## Context
-- .gsd/phases/5/RESEARCH.md
-- zeno/db.py
+- Backend/src/routes/employeeManagement.ts
+- Frontend/src/app/employee-management/page.tsx
 
 ## Tasks
 
 <task type="auto">
-  <name>Context Builder</name>
-  <files>zeno/ai/briefing.py</files>
+  <name>Attendance & Visit Reports API</name>
+  <files>Backend/src/routes/employeeManagement.ts</files>
   <action>
-    - Implement functions to gather:
-      - Pending tasks from `v_morning_brief_tasks` (title, priority, due, status).
-      - Last session's departure card (last_active_task, pending_items, energy_level).
-      - Today's calendar events (title, start, end).
-      - `peak_focus_window` from `behaviour_patterns`.
-      - Weekly summary from `analytics_weekly`.
-    - Format these into a compact context string (under ~800 tokens).
+    - Implement `GET /api/employee-management/attendance` & `POST /api/employee-management/attendance/clock` (clock-in/clock-out).
+    - Implement `GET /api/employee-management/visit-reports` & `POST /api/employee-management/visit-reports`.
   </action>
-  <verify>python -m py_compile zeno/ai/briefing.py</verify>
-  <done>Context builder collects all required data efficiently.</done>
+  <verify>curl -s http://localhost:5000/api/employee-management/attendance</verify>
+  <done>Attendance and Visit Reports APIs connected to Prisma DB.</done>
 </task>
 
 <task type="auto">
-  <name>Briefing Synthesis</name>
-  <files>zeno/ai/briefing.py</files>
+  <name>Connect Frontend Attendance & Visit Reports Tabs</name>
+  <files>Frontend/src/app/employee-management/page.tsx</files>
   <action>
-    - Implement `generate_morning_briefing()` which takes the gathered context and calls the LLM.
-    - Prompt constraint: The LLM must synthesize the information into a conversational briefing under 120 words of spoken length.
-    - Connect this to the `deliver_briefing` intent or startup script.
+    - Replace mock data calls in Attendance and Visit Reports tabs with `fetch()` calls to the new backend endpoints.
   </action>
-  <verify>python -m py_compile zeno/ai/briefing.py</verify>
-  <done>The LLM generates a concise, accurate morning briefing from the provided context.</done>
+  <verify>npm run build --prefix Frontend</verify>
+  <done>Attendance and Visit Reports tabs display real DB data.</done>
 </task>
 
 ## Success Criteria
-- [ ] Briefing is correctly formed and respects context size limits.
-- [ ] Briefing generates quickly and is ready for TTS.
+- [ ] Attendance and Visit Reports persist in SQLite via Prisma.
+
+---
+
+# Plan 5.5: Running Jobs & Salary Slips Migration
+
+## Objective
+Migrate Running Jobs and Salary Slips in Employee Hub from mock data to Prisma DB persistence.
+
+## Context
+- Backend/src/routes/employeeManagement.ts
+- Frontend/src/app/employee-management/page.tsx
+
+## Tasks
+
+<task type="auto">
+  <name>Running Jobs & Salary Slips API</name>
+  <files>Backend/src/routes/employeeManagement.ts</files>
+  <action>
+    - Implement `GET /api/employee-management/running-jobs` & `PUT /api/employee-management/running-jobs/:id/progress`.
+    - Implement `GET /api/employee-management/salary-slips` & `POST /api/employee-management/salary-slips`.
+  </action>
+  <verify>curl -s http://localhost:5000/api/employee-management/salary-slips</verify>
+  <done>Running Jobs and Salary Slips APIs connected to Prisma DB.</done>
+</task>
+
+<task type="auto">
+  <name>Connect Frontend Running Jobs & Salary Slips Tabs</name>
+  <files>Frontend/src/app/employee-management/page.tsx</files>
+  <action>
+    - Update Running Jobs and Salary Slips tabs to use `fetch()` to load and update DB records.
+  </action>
+  <verify>npm run build --prefix Frontend</verify>
+  <done>Running Jobs and Salary Slips tabs display real DB data.</done>
+</task>
+
+## Success Criteria
+- [ ] Running Jobs and Salary Slips persist in SQLite via Prisma.
+
+---
+
+# Plan 5.6: HR Dashboard & Mock Data Cleanup
+
+## Objective
+Connect HR Dashboard metrics to real DB data and purge runtime mock data arrays from `mockData.ts`.
+
+## Context
+- Backend/src/routes/employeeManagement.ts
+- Frontend/src/app/employee-management/page.tsx
+- Frontend/src/lib/mockData.ts
+
+## Tasks
+
+<task type="auto">
+  <name>HR Dashboard Metrics Endpoint</name>
+  <files>Backend/src/routes/employeeManagement.ts</files>
+  <action>
+    - Implement `GET /api/employee-management/dashboard`: query total employees, today present count, on leave count, pending leave applications, active WBS tasks.
+    - Connect HR Dashboard stats overview in `Frontend/src/app/employee-management/page.tsx` to this endpoint.
+  </action>
+  <verify>curl -s http://localhost:5000/api/employee-management/dashboard</verify>
+  <done>HR Dashboard shows real metrics from Prisma DB.</done>
+</task>
+
+<task type="auto">
+  <name>Purge Runtime Arrays from mockData.ts</name>
+  <files>Frontend/src/lib/mockData.ts</files>
+  <action>
+    - Remove runtime mock arrays (`mockOrders`, `mockEmployeeAttendance`, `mockLeaveApplications`, `mockRunningJobs`, `mockSalarySlips`, `mockVisitReports`).
+    - Keep only TypeScript interfaces and constants.
+  </action>
+  <verify>npm run build --prefix Frontend</verify>
+  <done>mockData.ts contains only TypeScript interfaces with zero runtime arrays.</done>
+</task>
+
+## Success Criteria
+- [ ] HR Dashboard metrics are live from the database.
+- [ ] Runtime mock arrays are completely eliminated.

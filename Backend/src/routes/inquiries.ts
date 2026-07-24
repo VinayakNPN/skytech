@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../db/prisma';
 import { logSystemEvent } from '../data/mockData';
 import { validateBody, createInquirySchema } from '../validators';
+import { seedStandardWBSTasksForInquiry, markPhase1CompletedForInquiry } from '../utils/wbsSeeder';
 
 const router = Router();
 
@@ -78,18 +79,17 @@ router.get('/stats', async (req, res) => {
 // POST create new inquiry in Database
 router.post('/', validateBody(createInquirySchema), async (req, res) => {
   try {
-    const lastInquiry = await prisma.inquiry.findFirst({
-      orderBy: { inquiryCode: 'desc' }
-    });
-
-    let nextNum = 1;
-    if (lastInquiry && lastInquiry.inquiryCode) {
-      const match = lastInquiry.inquiryCode.match(/(\d+)$/);
+    const allInquiries = await prisma.inquiry.findMany({ select: { inquiryCode: true } });
+    let maxNum = 0;
+    for (const inq of allInquiries) {
+      const match = inq.inquiryCode.match(/(\d+)$/);
       if (match) {
-        nextNum = parseInt(match[1], 10) + 1;
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
       }
     }
-    const inquiryCode = `INQ_${String(nextNum).padStart(2, '0')}`;
+    const nextNum = maxNum + 1;
+    const inquiryCode = `JOB-${String(nextNum).padStart(2, '0')}`;
 
     const newInquiry = await prisma.inquiry.create({
       data: {
@@ -108,11 +108,30 @@ router.post('/', validateBody(createInquirySchema), async (req, res) => {
       }
     });
 
+    // Sync with Job Master table for Inventory & Store integration
+    await prisma.job.upsert({
+      where: { jobNo: inquiryCode },
+      update: {
+        clientName: newInquiry.client,
+        status: 'Running'
+      },
+      create: {
+        jobNo: inquiryCode,
+        clientName: newInquiry.client,
+        status: 'Running'
+      }
+    });
+
     logSystemEvent('API Server', `New client inquiry registered in DB: ${newInquiry.inquiryCode} (${newInquiry.client})`, 'info');
+
+    // Auto-populate 39 standard WBS boilerplate tasks for this project
+    const isConfirmed = newInquiry.status === 'Confirmed';
+    await seedStandardWBSTasksForInquiry(newInquiry.id, isConfirmed);
+
     res.status(201).json(newInquiry);
   } catch (err: any) {
     console.error('[DB Error] POST /api/inquiries:', err);
-    res.status(500).json({ error: 'Failed to create inquiry' });
+    res.status(500).json({ error: err?.message || 'Failed to create inquiry in database' });
   }
 });
 
@@ -137,16 +156,16 @@ router.put('/:id/hold', async (req, res) => {
       where: { id: existing.id },
       data: {
         holdStatus: true,
-        holdReason: req.body.reason || 'Project placed on hold by manager',
+        holdReason: req.body.reason || 'Project placed on hold',
         heldAt: new Date()
       }
     });
 
-    logSystemEvent('API Server', `Project ${updated.inquiryCode} placed on HOLD: ${updated.holdReason}`, 'warn');
+    logSystemEvent('API Server', `Project ${updated.inquiryCode} placed ON HOLD in DB`, 'info');
     res.json(updated);
   } catch (err: any) {
     console.error('[DB Error] PUT /api/inquiries/:id/hold:', err);
-    res.status(500).json({ error: 'Failed to hold project' });
+    res.status(500).json({ error: 'Failed to place project on hold' });
   }
 });
 
@@ -202,6 +221,11 @@ router.put('/:id', async (req, res) => {
         ...(req.body.remarks !== undefined && { remarks: req.body.remarks })
       }
     });
+
+    // If status was changed to Confirmed, automatically complete Phase 1.0 (Inquiry & Offer Phase)
+    if (req.body.status === 'Confirmed') {
+      await markPhase1CompletedForInquiry(updated.id);
+    }
 
     logSystemEvent('API Server', `Inquiry ${updated.inquiryCode} updated in DB`, 'info');
     res.json(updated);

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { API_BASE_URL } from '@/config/api';
+import { API_BASE_URL, getAuthHeaders } from '@/config/api';
 import { 
   Plus, 
   ChevronRight, 
@@ -26,8 +26,10 @@ import {
   Building2,
   Send,
   Briefcase,
-  CheckCircle
+  CheckCircle,
+  Upload
 } from 'lucide-react';
+import { ExcelUploadModal } from '@/components/ExcelUploadModal';
 
 interface WBSTask {
   id: string;
@@ -65,12 +67,7 @@ interface ConfirmedInquiryProject {
   status: string;
 }
 
-const DEFAULT_CONFIRMED_PROJECTS: ConfirmedInquiryProject[] = [
-  { id: 'INQ_01', client: 'Reliance Green Energy', project: '132kV Substation Panel', amount: '1850000', date: '2026-07-18', status: 'Confirmed' },
-  { id: 'INQ_03', client: 'Adani Solar Power', project: 'MCC Panel System', amount: '2400000', date: '2026-07-14', status: 'Confirmed' },
-  { id: 'INQ_05', client: 'Torrent Power Pvt Ltd', project: 'APFC Panel 440V', amount: '1510000', date: '2026-07-09', status: 'Confirmed' },
-  { id: 'INQ_07', client: 'BHEL Engineering', project: 'Generator Control Panel', amount: '2280000', date: '2026-06-28', status: 'Confirmed' }
-];
+const DEFAULT_CONFIRMED_PROJECTS: ConfirmedInquiryProject[] = [];
 
 const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
   {
@@ -82,14 +79,14 @@ const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
     badgeText: 'text-blue-700',
     owner: 'Vinayak NPN',
     tasks: [
-      { id: '1.1', wbsCode: '1.1', name: 'Inquiry Received to Skytech', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_01', owner: 'Sales Team', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
-      { id: '1.2', wbsCode: '1.2', name: 'Design & Costing Proposal', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_01', owner: 'Design Lead', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
-      { id: '1.3', wbsCode: '1.3', name: 'Quotation Offer Ready', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_01', owner: 'Costing Team', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
-      { id: '1.4', wbsCode: '1.4', name: 'Offer Sent to Client', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_01', owner: 'Sales Manager', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
-      { id: '1.5', wbsCode: '1.5', name: 'Client Order Confirmation', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_01', owner: 'Vinayak NPN', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
+      { id: '1.1', wbsCode: '1.1', name: 'Inquiry Received to Skytech', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'JOB-01', owner: 'Sales Team', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
+      { id: '1.2', wbsCode: '1.2', name: 'Design & Costing Proposal', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'JOB-01', owner: 'Design Lead', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
+      { id: '1.3', wbsCode: '1.3', name: 'Quotation Offer Ready', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'JOB-01', owner: 'Costing Team', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
+      { id: '1.4', wbsCode: '1.4', name: 'Offer Sent to Client', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'JOB-01', owner: 'Sales Manager', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '1.5', wbsCode: '1.5', name: 'Client Order Confirmation', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'JOB-01', owner: 'Vinayak NPN', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
       
-      { id: '1.1-103', wbsCode: '1.1', name: 'Inquiry Received to Skytech', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_03', owner: 'Sales Team', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
-      { id: '1.5-103', wbsCode: '1.5', name: 'Client Order Confirmation', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'INQ_03', owner: 'Vinayak NPN', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 }
+      { id: '1.1-102', wbsCode: '1.1', name: 'Inquiry Received to Skytech', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'JOB-02', owner: 'Sales Team', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
+      { id: '1.5-102', wbsCode: '1.5', name: 'Client Order Confirmation', phaseId: 'phase-1', phaseName: 'INQUIRY & OFFER PHASE', phaseBadge: 'INQUIRY', projectId: 'JOB-02', owner: 'Vinayak NPN', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 }
     ]
   },
   {
@@ -101,16 +98,16 @@ const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
     badgeText: 'text-indigo-700',
     owner: 'Design Lead',
     tasks: [
-      { id: '2.1', wbsCode: '2.1', name: 'Ga Drawing', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'INQ-101', owner: 'Amol M.', planHours: 12, actualHours: 12, status: 'DONE', progress: 100 },
-      { id: '2.2', wbsCode: '2.2', name: 'SLD (Single Line Diagram)', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'INQ-101', owner: 'Amol M.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
-      { id: '2.3', wbsCode: '2.3', name: 'Control Drawing', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'INQ-101', owner: 'Design Team', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
-      { id: '2.4', wbsCode: '2.4', name: 'All Drawing Approve', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'INQ-101', owner: 'Client Eng.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
-      { id: '2.5', wbsCode: '2.5', name: 'BOQ (Bill of Quantities)', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'INQ-101', owner: 'Costing Team', planHours: 10, actualHours: 10, status: 'DONE', progress: 100 },
-      { id: '2.6', wbsCode: '2.6', name: 'Job Loaded', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'INQ-101', owner: 'System Admin', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
-      { id: '2.7', wbsCode: '2.7', name: 'Job file Send to Dept.', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'INQ-101', owner: 'Dispatch Lead', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '2.1', wbsCode: '2.1', name: 'Ga Drawing', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'Amol M.', planHours: 12, actualHours: 12, status: 'DONE', progress: 100 },
+      { id: '2.2', wbsCode: '2.2', name: 'SLD (Single Line Diagram)', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'Amol M.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
+      { id: '2.3', wbsCode: '2.3', name: 'Control Drawing', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'Design Team', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
+      { id: '2.4', wbsCode: '2.4', name: 'All Drawing Approve', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'Client Eng.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
+      { id: '2.5', wbsCode: '2.5', name: 'BOQ (Bill of Quantities)', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'Costing Team', planHours: 10, actualHours: 10, status: 'DONE', progress: 100 },
+      { id: '2.6', wbsCode: '2.6', name: 'Job Loaded', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'System Admin', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '2.7', wbsCode: '2.7', name: 'Job file Send to Dept.', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'Dispatch Lead', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
 
-      { id: '2.1-103', wbsCode: '2.1', name: 'Ga Drawing', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'INQ-103', owner: 'Amol M.', planHours: 12, actualHours: 12, status: 'DONE', progress: 100 },
-      { id: '2.4-103', wbsCode: '2.4', name: 'All Drawing Approve', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'INQ-103', owner: 'Client Eng.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 }
+      { id: '2.1-102', wbsCode: '2.1', name: 'Ga Drawing', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-02', owner: 'Amol M.', planHours: 12, actualHours: 12, status: 'DONE', progress: 100 },
+      { id: '2.4-102', wbsCode: '2.4', name: 'All Drawing Approve', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-02', owner: 'Client Eng.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 }
     ]
   },
   {
@@ -122,14 +119,14 @@ const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
     badgeText: 'text-purple-700',
     owner: 'Store Manager',
     tasks: [
-      { id: '3.1', wbsCode: '3.1', name: 'Job File Received', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'INQ-101', owner: 'Store Clerk', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
-      { id: '3.2', wbsCode: '3.2', name: 'Order Material Shortlisted', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'INQ-101', owner: 'Store Manager', planHours: 6, actualHours: 6, status: 'DONE', progress: 100 },
-      { id: '3.3', wbsCode: '3.3', name: 'Material Order', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'INQ-101', owner: 'Purchase Exec.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
-      { id: '3.4', wbsCode: '3.4', name: 'Material Received', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'INQ-101', owner: 'Warehouse Supervisor', planHours: 12, actualHours: 12, status: 'DONE', progress: 100 },
-      { id: '3.5', wbsCode: '3.5', name: 'Material Handover to Dept.', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'INQ-101', owner: 'Store Officer', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
+      { id: '3.1', wbsCode: '3.1', name: 'Job File Received', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'JOB-01', owner: 'Store Clerk', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '3.2', wbsCode: '3.2', name: 'Order Material Shortlisted', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'JOB-01', owner: 'Store Manager', planHours: 6, actualHours: 6, status: 'DONE', progress: 100 },
+      { id: '3.3', wbsCode: '3.3', name: 'Material Order', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'JOB-01', owner: 'Purchase Exec.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
+      { id: '3.4', wbsCode: '3.4', name: 'Material Received', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'JOB-01', owner: 'Warehouse Supervisor', planHours: 12, actualHours: 12, status: 'DONE', progress: 100 },
+      { id: '3.5', wbsCode: '3.5', name: 'Material Handover to Dept.', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'JOB-01', owner: 'Store Officer', planHours: 4, actualHours: 4, status: 'DONE', progress: 100 },
 
-      { id: '3.1-105', wbsCode: '3.1', name: 'Job File Received', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'INQ-105', owner: 'Store Clerk', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
-      { id: '3.3-105', wbsCode: '3.3', name: 'Material Order', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'INQ-105', owner: 'Purchase Exec.', planHours: 8, actualHours: 4, status: 'IN PROGRESS', progress: 50 }
+      { id: '3.1-103', wbsCode: '3.1', name: 'Job File Received', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'JOB-03', owner: 'Store Clerk', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '3.3-103', wbsCode: '3.3', name: 'Material Order', phaseId: 'phase-3', phaseName: 'STORE DEPT.', phaseBadge: 'STORE', projectId: 'JOB-03', owner: 'Purchase Exec.', planHours: 8, actualHours: 4, status: 'IN PROGRESS', progress: 50 }
     ]
   },
   {
@@ -141,15 +138,15 @@ const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
     badgeText: 'text-cyan-700',
     owner: 'Mech Supervisor',
     tasks: [
-      { id: '4.1', wbsCode: '4.1', name: 'Job File Received', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'INQ-101', owner: 'Mech Lead', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
-      { id: '4.2', wbsCode: '4.2', name: 'Sheet Cutting', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'INQ-101', owner: 'Operator A', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
-      { id: '4.3', wbsCode: '4.3', name: 'Bending', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'INQ-101', owner: 'Operator B', planHours: 12, actualHours: 12, status: 'DONE', progress: 100 },
-      { id: '4.4', wbsCode: '4.4', name: 'Fabrication', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'INQ-101', owner: 'Fabrication Team', planHours: 24, actualHours: 24, status: 'DONE', progress: 100 },
-      { id: '4.5', wbsCode: '4.5', name: 'Painting', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'INQ-101', owner: 'Coat Tech', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
-      { id: '4.6', wbsCode: '4.6', name: 'Dispatch to Busbar Dept.', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'INQ-101', owner: 'Floor Logistics', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '4.1', wbsCode: '4.1', name: 'Job File Received', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'JOB-01', owner: 'Mech Lead', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '4.2', wbsCode: '4.2', name: 'Sheet Cutting', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'JOB-01', owner: 'Operator A', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
+      { id: '4.3', wbsCode: '4.3', name: 'Bending', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'JOB-01', owner: 'Operator B', planHours: 12, actualHours: 12, status: 'DONE', progress: 100 },
+      { id: '4.4', wbsCode: '4.4', name: 'Fabrication', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'JOB-01', owner: 'Fabrication Team', planHours: 24, actualHours: 24, status: 'DONE', progress: 100 },
+      { id: '4.5', wbsCode: '4.5', name: 'Painting', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'JOB-01', owner: 'Coat Tech', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
+      { id: '4.6', wbsCode: '4.6', name: 'Dispatch to Busbar Dept.', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'JOB-01', owner: 'Floor Logistics', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
 
-      { id: '4.2-103', wbsCode: '4.2', name: 'Sheet Cutting', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'INQ-103', owner: 'Operator A', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
-      { id: '4.4-103', wbsCode: '4.4', name: 'Fabrication', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'INQ-103', owner: 'Fabrication Team', planHours: 24, actualHours: 24, status: 'DONE', progress: 100 }
+      { id: '4.2-102', wbsCode: '4.2', name: 'Sheet Cutting', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'JOB-02', owner: 'Operator A', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
+      { id: '4.4-102', wbsCode: '4.4', name: 'Fabrication', phaseId: 'phase-4', phaseName: 'MECHANICAL DEPT.', phaseBadge: 'MECHANICAL', projectId: 'JOB-02', owner: 'Fabrication Team', planHours: 24, actualHours: 24, status: 'DONE', progress: 100 }
     ]
   },
   {
@@ -161,15 +158,15 @@ const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
     badgeText: 'text-indigo-700',
     owner: 'Assembly Lead',
     tasks: [
-      { id: '5.1', wbsCode: '5.1', name: 'Job File Received', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'INQ-101', owner: 'Assembly Tech', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
-      { id: '5.2', wbsCode: '5.2', name: 'Panel Assemble', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'INQ-101', owner: 'Fitter Team', planHours: 20, actualHours: 20, status: 'DONE', progress: 100 },
-      { id: '5.3', wbsCode: '5.3', name: 'Busbar & Switchgear fitted', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'INQ-101', owner: 'Busbar Tech', planHours: 18, actualHours: 18, status: 'DONE', progress: 100 },
-      { id: '5.4', wbsCode: '5.4', name: 'Busbar tightening', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'INQ-101', owner: 'QC Inspector', planHours: 10, actualHours: 5, status: 'IN PROGRESS', progress: 50 },
-      { id: '5.5', wbsCode: '5.5', name: 'Accessories Fitted', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'INQ-101', owner: 'Assembly Tech', planHours: 8, actualHours: 0, status: 'NOT STARTED', progress: 0 },
-      { id: '5.6', wbsCode: '5.6', name: 'Dispatch to Electrical Dept.', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'INQ-101', owner: 'Floor Supervisor', planHours: 2, actualHours: 0, status: 'NOT STARTED', progress: 0 },
+      { id: '5.1', wbsCode: '5.1', name: 'Job File Received', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'JOB-01', owner: 'Assembly Tech', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '5.2', wbsCode: '5.2', name: 'Panel Assemble', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'JOB-01', owner: 'Fitter Team', planHours: 20, actualHours: 20, status: 'DONE', progress: 100 },
+      { id: '5.3', wbsCode: '5.3', name: 'Busbar & Switchgear fitted', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'JOB-01', owner: 'Busbar Tech', planHours: 18, actualHours: 18, status: 'DONE', progress: 100 },
+      { id: '5.4', wbsCode: '5.4', name: 'Busbar tightening', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'JOB-01', owner: 'QC Inspector', planHours: 10, actualHours: 5, status: 'IN PROGRESS', progress: 50 },
+      { id: '5.5', wbsCode: '5.5', name: 'Accessories Fitted', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'JOB-01', owner: 'Assembly Tech', planHours: 8, actualHours: 0, status: 'NOT STARTED', progress: 0 },
+      { id: '5.6', wbsCode: '5.6', name: 'Dispatch to Electrical Dept.', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'JOB-01', owner: 'Floor Supervisor', planHours: 2, actualHours: 0, status: 'NOT STARTED', progress: 0 },
 
-      { id: '5.3-103', wbsCode: '5.3', name: 'Busbar & Switchgear fitted', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'INQ-103', owner: 'Busbar Tech', planHours: 18, actualHours: 18, status: 'DONE', progress: 100 },
-      { id: '5.4-103', wbsCode: '5.4', name: 'Busbar tightening', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'INQ-103', owner: 'QC Inspector', planHours: 10, actualHours: 8, status: 'IN PROGRESS', progress: 80 }
+      { id: '5.3-102', wbsCode: '5.3', name: 'Busbar & Switchgear fitted', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'JOB-02', owner: 'Busbar Tech', planHours: 18, actualHours: 18, status: 'DONE', progress: 100 },
+      { id: '5.4-102', wbsCode: '5.4', name: 'Busbar tightening', phaseId: 'phase-5', phaseName: 'ASSEMBLY & BUSBAR DEPT.', phaseBadge: 'ASSEMBLY', projectId: 'JOB-02', owner: 'QC Inspector', planHours: 10, actualHours: 8, status: 'IN PROGRESS', progress: 80 }
     ]
   },
   {
@@ -181,13 +178,13 @@ const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
     badgeText: 'text-amber-700',
     owner: 'Electrical Lead',
     tasks: [
-      { id: '6.1', wbsCode: '6.1', name: 'Job File Received', phaseId: 'phase-6', phaseName: 'ELECTRICAL DEPT.', phaseBadge: 'ELECTRICAL', projectId: 'INQ-101', owner: 'Wire Lead', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
-      { id: '6.2', wbsCode: '6.2', name: 'Power Wiring', phaseId: 'phase-6', phaseName: 'ELECTRICAL DEPT.', phaseBadge: 'ELECTRICAL', projectId: 'INQ-101', owner: 'Electrician A', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
-      { id: '6.3', wbsCode: '6.3', name: 'Control Wiring', phaseId: 'phase-6', phaseName: 'ELECTRICAL DEPT.', phaseBadge: 'ELECTRICAL', projectId: 'INQ-101', owner: 'Electrician B', planHours: 20, actualHours: 8, status: 'IN PROGRESS', progress: 40 },
-      { id: '6.4', wbsCode: '6.4', name: 'Accessories Wiring', phaseId: 'phase-6', phaseName: 'ELECTRICAL DEPT.', phaseBadge: 'ELECTRICAL', projectId: 'INQ-101', owner: 'Wire Asst', planHours: 12, actualHours: 0, status: 'NOT STARTED', progress: 0 },
-      { id: '6.5', wbsCode: '6.5', name: 'Dispatch to Testing Dept.', phaseId: 'phase-6', phaseName: 'ELECTRICAL DEPT.', phaseBadge: 'ELECTRICAL', projectId: 'INQ-101', owner: 'Elec Supervisor', planHours: 2, actualHours: 0, status: 'NOT STARTED', progress: 0 },
+      { id: '6.1', wbsCode: '6.1', name: 'Job File Received', phaseId: 'phase-6', phaseName: 'ELECTRICAL DEPT.', phaseBadge: 'ELECTRICAL', projectId: 'JOB-01', owner: 'Wire Lead', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '6.2', wbsCode: '6.2', name: 'Power Wiring', phaseId: 'phase-6', phaseName: 'ELECTRICAL DEPT.', phaseBadge: 'ELECTRICAL', projectId: 'JOB-01', owner: 'Electrician A', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
+      { id: '6.3', wbsCode: '6.3', name: 'Control Wiring', phaseId: 'phase-6', phaseName: 'ELECTRICAL DEPT.', phaseBadge: 'ELECTRICAL', projectId: 'JOB-01', owner: 'Electrician B', planHours: 20, actualHours: 8, status: 'IN PROGRESS', progress: 40 },
+      { id: '6.4', wbsCode: '6.4', name: 'Accessories Wiring', phaseId: 'phase-6', phaseName: 'ELECTRICAL DEPT.', phaseBadge: 'ELECTRICAL', projectId: 'JOB-01', owner: 'Wire Asst', planHours: 12, actualHours: 0, status: 'NOT STARTED', progress: 0 },
+      { id: '6.5', wbsCode: '6.5', name: 'Dispatch to Testing Dept.', phaseId: 'phase-6', phaseName: 'ELECTRICAL DEPT.', phaseBadge: 'ELECTRICAL', projectId: 'JOB-01', owner: 'Elec Supervisor', planHours: 2, actualHours: 0, status: 'NOT STARTED', progress: 0 },
 
-      { id: '6.2-107', wbsCode: '6.2', name: 'Power Wiring', phaseId: 'phase-6', phaseName: 'ELECTRICAL DEPT.', phaseBadge: 'ELECTRICAL', projectId: 'INQ-107', owner: 'Electrician A', planHours: 16, actualHours: 4, status: 'IN PROGRESS', progress: 25 }
+      { id: '6.2-104', wbsCode: '6.2', name: 'Power Wiring', phaseId: 'phase-6', phaseName: 'ELECTRICAL DEPT.', phaseBadge: 'ELECTRICAL', projectId: 'JOB-04', owner: 'Electrician A', planHours: 16, actualHours: 4, status: 'IN PROGRESS', progress: 25 }
     ]
   },
   {
@@ -199,11 +196,11 @@ const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
     badgeText: 'text-emerald-700',
     owner: 'QC Manager',
     tasks: [
-      { id: '7.1', wbsCode: '7.1', name: 'Job File Received', phaseId: 'phase-7', phaseName: 'TESTING DEPT.', phaseBadge: 'TESTING', projectId: 'INQ-101', owner: 'QC Inspector', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
-      { id: '7.2', wbsCode: '7.2', name: 'Short Material List', phaseId: 'phase-7', phaseName: 'TESTING DEPT.', phaseBadge: 'TESTING', projectId: 'INQ-101', owner: 'QC Tech', planHours: 4, actualHours: 0, status: 'NOT STARTED', progress: 0 },
-      { id: '7.3', wbsCode: '7.3', name: 'Panel operation Test', phaseId: 'phase-7', phaseName: 'TESTING DEPT.', phaseBadge: 'TESTING', projectId: 'INQ-101', owner: 'Test Eng.', planHours: 12, actualHours: 0, status: 'NOT STARTED', progress: 0 },
-      { id: '7.4', wbsCode: '7.4', name: 'All Parameter Checked by Approve list', phaseId: 'phase-7', phaseName: 'TESTING DEPT.', phaseBadge: 'TESTING', projectId: 'INQ-101', owner: 'QC Head', planHours: 8, actualHours: 0, status: 'NOT STARTED', progress: 0 },
-      { id: '7.5', wbsCode: '7.5', name: 'Ready for Dispatch.', phaseId: 'phase-7', phaseName: 'TESTING DEPT.', phaseBadge: 'TESTING', projectId: 'INQ-101', owner: 'Final Release Manager', planHours: 2, actualHours: 0, status: 'NOT STARTED', progress: 0 }
+      { id: '7.1', wbsCode: '7.1', name: 'Job File Received', phaseId: 'phase-7', phaseName: 'TESTING DEPT.', phaseBadge: 'TESTING', projectId: 'JOB-01', owner: 'QC Inspector', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '7.2', wbsCode: '7.2', name: 'Short Material List', phaseId: 'phase-7', phaseName: 'TESTING DEPT.', phaseBadge: 'TESTING', projectId: 'JOB-01', owner: 'QC Tech', planHours: 4, actualHours: 0, status: 'NOT STARTED', progress: 0 },
+      { id: '7.3', wbsCode: '7.3', name: 'Panel operation Test', phaseId: 'phase-7', phaseName: 'TESTING DEPT.', phaseBadge: 'TESTING', projectId: 'JOB-01', owner: 'Test Eng.', planHours: 12, actualHours: 0, status: 'NOT STARTED', progress: 0 },
+      { id: '7.4', wbsCode: '7.4', name: 'All Parameter Checked by Approve list', phaseId: 'phase-7', phaseName: 'TESTING DEPT.', phaseBadge: 'TESTING', projectId: 'JOB-01', owner: 'QC Head', planHours: 8, actualHours: 0, status: 'NOT STARTED', progress: 0 },
+      { id: '7.5', wbsCode: '7.5', name: 'Ready for Dispatch.', phaseId: 'phase-7', phaseName: 'TESTING DEPT.', phaseBadge: 'TESTING', projectId: 'JOB-01', owner: 'Final Release Manager', planHours: 2, actualHours: 0, status: 'NOT STARTED', progress: 0 }
     ]
   },
   {
@@ -215,9 +212,9 @@ const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
     badgeText: 'text-rose-700',
     owner: 'Accounts Officer',
     tasks: [
-      { id: '8.1', wbsCode: '8.1', name: 'Final Invoice Generated', phaseId: 'phase-8', phaseName: 'ACCOUNTS & DISPATCH', phaseBadge: 'ACCOUNTS', projectId: 'INQ-101', owner: 'Accounts Team', planHours: 4, actualHours: 0, status: 'NOT STARTED', progress: 0 },
-      { id: '8.2', wbsCode: '8.2', name: 'Payment Clearance', phaseId: 'phase-8', phaseName: 'ACCOUNTS & DISPATCH', phaseBadge: 'ACCOUNTS', projectId: 'INQ-101', owner: 'Finance Lead', planHours: 4, actualHours: 0, status: 'NOT STARTED', progress: 0 },
-      { id: '8.3', wbsCode: '8.3', name: 'Ready For Dispatch Clearance', phaseId: 'phase-8', phaseName: 'ACCOUNTS & DISPATCH', phaseBadge: 'ACCOUNTS', projectId: 'INQ-101', owner: 'Dispatch Manager', planHours: 2, actualHours: 0, status: 'NOT STARTED', progress: 0 }
+      { id: '8.1', wbsCode: '8.1', name: 'Final Invoice Generated', phaseId: 'phase-8', phaseName: 'ACCOUNTS & DISPATCH', phaseBadge: 'ACCOUNTS', projectId: 'JOB-01', owner: 'Accounts Team', planHours: 4, actualHours: 0, status: 'NOT STARTED', progress: 0 },
+      { id: '8.2', wbsCode: '8.2', name: 'Payment Clearance', phaseId: 'phase-8', phaseName: 'ACCOUNTS & DISPATCH', phaseBadge: 'ACCOUNTS', projectId: 'JOB-01', owner: 'Finance Lead', planHours: 4, actualHours: 0, status: 'NOT STARTED', progress: 0 },
+      { id: '8.3', wbsCode: '8.3', name: 'Ready For Dispatch Clearance', phaseId: 'phase-8', phaseName: 'ACCOUNTS & DISPATCH', phaseBadge: 'ACCOUNTS', projectId: 'JOB-01', owner: 'Dispatch Manager', planHours: 2, actualHours: 0, status: 'NOT STARTED', progress: 0 }
     ]
   },
   {
@@ -229,10 +226,10 @@ const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
     badgeText: 'text-teal-700',
     owner: 'Service Manager',
     tasks: [
-      { id: '9.1', wbsCode: '9.1', name: 'Service Call Received', phaseId: 'phase-9', phaseName: 'SUPPORT & SERVICE DEPT.', phaseBadge: 'SUPPORT', projectId: 'INQ-101', owner: 'Support Desk', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
-      { id: '9.2', wbsCode: '9.2', name: 'Assigned Engineer', phaseId: 'phase-9', phaseName: 'SUPPORT & SERVICE DEPT.', phaseBadge: 'SUPPORT', projectId: 'INQ-101', owner: 'Service Lead', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
-      { id: '9.3', wbsCode: '9.3', name: 'Service call done', phaseId: 'phase-9', phaseName: 'SUPPORT & SERVICE DEPT.', phaseBadge: 'SUPPORT', projectId: 'INQ-101', owner: 'Field Engineer', planHours: 16, actualHours: 0, status: 'NOT STARTED', progress: 0 },
-      { id: '9.4', wbsCode: '9.4', name: 'Submit service report', phaseId: 'phase-9', phaseName: 'SUPPORT & SERVICE DEPT.', phaseBadge: 'SUPPORT', projectId: 'INQ-101', owner: 'Field Engineer', planHours: 4, actualHours: 0, status: 'NOT STARTED', progress: 0 }
+      { id: '9.1', wbsCode: '9.1', name: 'Service Call Received', phaseId: 'phase-9', phaseName: 'SUPPORT & SERVICE DEPT.', phaseBadge: 'SUPPORT', projectId: 'JOB-01', owner: 'Support Desk', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '9.2', wbsCode: '9.2', name: 'Assigned Engineer', phaseId: 'phase-9', phaseName: 'SUPPORT & SERVICE DEPT.', phaseBadge: 'SUPPORT', projectId: 'JOB-01', owner: 'Service Lead', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '9.3', wbsCode: '9.3', name: 'Service call done', phaseId: 'phase-9', phaseName: 'SUPPORT & SERVICE DEPT.', phaseBadge: 'SUPPORT', projectId: 'JOB-01', owner: 'Field Engineer', planHours: 16, actualHours: 0, status: 'NOT STARTED', progress: 0 },
+      { id: '9.4', wbsCode: '9.4', name: 'Submit service report', phaseId: 'phase-9', phaseName: 'SUPPORT & SERVICE DEPT.', phaseBadge: 'SUPPORT', projectId: 'JOB-01', owner: 'Field Engineer', planHours: 4, actualHours: 0, status: 'NOT STARTED', progress: 0 }
     ]
   }
 ];
@@ -256,6 +253,9 @@ export default function WBSPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+
+  // Excel Modal State
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
 
   // Add Task Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -311,21 +311,50 @@ export default function WBSPage() {
     }
   };
 
-  // Fetch confirmed inquiries live from Backend API (Sorted Ascending)
+  // Fetch confirmed inquiries live from Backend API
   useEffect(() => {
     const fetchConfirmedInquiries = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/inquiries`);
-        if (res.ok) {
-          const data = await res.json();
-          const confirmed = data
+        const headers = getAuthHeaders();
+        const [inqRes, jobsRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/inquiries`, { headers }),
+          fetch(`${API_BASE_URL}/api/inventory/jobs`, { headers })
+        ]);
+
+        let combined: ConfirmedInquiryProject[] = [];
+
+        if (inqRes.ok) {
+          const inqData = await inqRes.json();
+          combined = inqData
             .filter((i: any) => i.status === 'Confirmed')
-            .sort((a: any, b: any) => (a.inquiryCode || a.id).localeCompare(b.inquiryCode || b.id, undefined, { numeric: true }));
-          if (confirmed.length > 0) {
-            setConfirmedProjects(confirmed);
-            const defaultId = confirmed[0].inquiryCode || confirmed[0].id;
-            setSelectedProjectId(prev => (prev === 'INQ-101' ? defaultId : prev));
-          }
+            .map((i: any) => ({
+              id: i.inquiryCode || i.id,
+              inquiryCode: i.inquiryCode || i.id,
+              client: i.client,
+              project: i.project,
+              amount: String(i.amount || 1500000),
+              date: i.date || new Date().toISOString(),
+              status: 'Confirmed'
+            }));
+        }
+
+        if (combined.length === 0 && jobsRes.ok) {
+          const jobsData = await jobsRes.json();
+          combined = jobsData.map((j: any) => ({
+            id: j.jobNo,
+            inquiryCode: j.jobNo,
+            client: j.clientName || j.jobNo,
+            project: j.clientName || 'Job Master',
+            amount: '1500000',
+            date: new Date().toISOString(),
+            status: 'Confirmed'
+          }));
+        }
+
+        if (combined.length > 0) {
+          setConfirmedProjects(combined);
+          const defaultId = combined[0].inquiryCode || combined[0].id;
+          setSelectedProjectId(prev => (prev === 'INQ-101' || prev === 'INQ_01' ? defaultId : prev));
         }
       } catch (err) {
         console.error('Fetching confirmed inquiries for WBS fallback:', err);
@@ -333,6 +362,18 @@ export default function WBSPage() {
     };
     fetchConfirmedInquiries();
     fetchWBS();
+
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('skytech_selected_project_id');
+      if (saved) setSelectedProjectId(saved);
+    }
+
+    const handleProjectEvent = (e: any) => {
+      const saved = localStorage.getItem('skytech_selected_project_id');
+      if (saved) setSelectedProjectId(saved);
+    };
+    window.addEventListener('projectChanged', handleProjectEvent);
+    return () => window.removeEventListener('projectChanged', handleProjectEvent);
   }, []);
 
   // Currently selected confirmed project object
@@ -587,6 +628,15 @@ export default function WBSPage() {
 
             <button
               type="button"
+              onClick={() => setIsExcelModalOpen(true)}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
+            >
+              <Upload size={15} />
+              <span>Import Excel</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handleExportExcel}
               className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 transition-colors cursor-pointer"
             >
@@ -594,49 +644,6 @@ export default function WBSPage() {
               <span className="hidden sm:inline">Export Excel</span>
             </button>
           </div>
-        </div>
-
-        {/* SMART INTEGRATION: Confirmed Inquiries / Project Selector Dropdown */}
-        <div className="pt-3 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-blue-50/40 p-4 rounded-xl border border-blue-100">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1">
-            <div className="flex items-center gap-2">
-              <Building2 size={16} className="text-blue-600 flex-shrink-0" />
-              <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-                Confirmed Project:
-              </span>
-            </div>
-
-            <select
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="bg-white border-2 border-blue-500/80 text-blue-950 font-extrabold text-xs px-4 py-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer shadow-xs flex-1 max-w-md"
-            >
-              <option value="ALL">🌐 All Confirmed Projects (Aggregated Overview)</option>
-              {confirmedProjects.map(p => (
-                <option key={p.id} value={p.inquiryCode || p.id}>
-                  [{p.inquiryCode || p.id}] {p.client} — {p.project} (₹ {(Number(p.amount)/100000).toFixed(1)}L)
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Selected Project Quick Metadata Tag */}
-          {selectedProject && selectedProjectId !== 'ALL' ? (
-            <div className="flex items-center gap-3 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-2xs text-xs font-semibold">
-              <div className="flex items-center gap-1.5 text-emerald-600 font-bold">
-                <CheckCircle size={14} />
-                <span>Confirmed PO</span>
-              </div>
-              <span className="text-slate-300">|</span>
-              <span className="text-slate-700 font-bold">{selectedProject.client}</span>
-              <span className="text-slate-300">|</span>
-              <span className="font-mono font-extrabold text-blue-600">₹ {Number(selectedProject.amount).toLocaleString('en-IN')}</span>
-            </div>
-          ) : (
-            <div className="text-xs font-semibold text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
-              Showing total WBS overview across {confirmedProjects.length} confirmed client projects
-            </div>
-          )}
         </div>
 
       </div>
@@ -1350,6 +1357,18 @@ export default function WBSPage() {
           </div>
         </div>
       )}
+
+      {/* EXCEL UPLOAD MODAL */}
+      <ExcelUploadModal
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
+        endpointUrl={`${API_BASE_URL}/api/wbs/upload-excel`}
+        title="Import WBS Excel Schedule"
+        onSuccess={() => {
+          setIsExcelModalOpen(false);
+          fetchWBS();
+        }}
+      />
 
     </div>
   );

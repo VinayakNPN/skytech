@@ -19,12 +19,12 @@ export const validateBody = (schema: ZodSchema) => {
 };
 
 export const createInquirySchema = z.object({
-  client: z.string().min(1, 'Client name is required'),
-  project: z.string().min(1, 'Project name is required'),
-  amount: z.coerce.number().min(0, 'Amount must be positive'),
-  contactPerson: z.string().optional().default(''),
-  email: z.string().email('Invalid email').or(z.literal('')).optional().default(''),
-  phone: z.string().optional().default(''),
+  client: z.string().min(1, 'Client / Company Name is required'),
+  project: z.string().min(1, 'Project Description / Panel Type is required'),
+  amount: z.coerce.number().positive('Quoted Amount must be greater than 0'),
+  contactPerson: z.string().min(1, 'Contact Person Name is required'),
+  email: z.string().min(1, 'Email is required').email('Invalid email format (must include @ and .com)'),
+  phone: z.string().min(1, 'Contact Phone is required').regex(/^\+?[0-9\s-]{8,15}$/, 'Invalid phone format (e.g. +91 98000 00000 or 10-digit)'),
   date: z.string().optional(),
   status: z.enum(['Inquiry Received', 'Offer Sent', 'Confirmed', 'Unconfirmed']).optional().default('Inquiry Received'),
   remarks: z.string().optional().default('')

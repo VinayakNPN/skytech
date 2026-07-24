@@ -26,9 +26,9 @@ import {
   PlayCircle,
   Users
 } from 'lucide-react';
-import { API_BASE_URL } from '@/config/api';
+import { API_BASE_URL, getAuthHeaders } from '@/config/api';
 import { AssignTeamModal } from '@/components/AssignTeamModal';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Inquiry {
   id: string;
@@ -47,16 +47,7 @@ interface Inquiry {
   remarks: string;
 }
 
-const DEFAULT_INQUIRIES: Inquiry[] = [
-  { id: 'INQ_01', inquiryCode: 'INQ_01', client: 'Reliance Green Energy', project: '132kV Substation Panel', amount: '1850000', contactPerson: 'Rajesh Sharma', email: 'rajesh@reliance.com', phone: '+91 98250 12345', date: '2026-07-18', status: 'Confirmed', holdStatus: false, remarks: 'Design approved' },
-  { id: 'INQ_02', inquiryCode: 'INQ_02', client: 'Tata Steel Infra', project: 'Control Desk & PCC Panel', amount: '1220000', contactPerson: 'Amit Patel', email: 'amit@tatasteel.com', phone: '+91 98795 67890', date: '2026-07-16', status: 'Offer Sent', holdStatus: false, remarks: 'Quotation sent' },
-  { id: 'INQ_03', inquiryCode: 'INQ_03', client: 'Adani Solar Power', project: 'MCC Panel System', amount: '2400000', contactPerson: 'Suresh Verma', email: 'suresh@adani.com', phone: '+91 99090 11223', date: '2026-07-14', status: 'Confirmed', holdStatus: false, remarks: 'PO received' },
-  { id: 'INQ_04', inquiryCode: 'INQ_04', client: 'L&T Construction', project: 'Distribution Board DB-04', amount: '840000', contactPerson: 'Vikas Mehta', email: 'vikas@lnt.com', phone: '+91 94260 44556', date: '2026-07-12', status: 'Unconfirmed', holdStatus: false, remarks: 'Follow up required' },
-  { id: 'INQ_05', inquiryCode: 'INQ_05', client: 'Torrent Power Pvt Ltd', project: 'APFC Panel 440V', amount: '1510000', contactPerson: 'Pankaj Joshi', email: 'pankaj@torrent.com', phone: '+91 98240 33445', date: '2026-07-09', status: 'Confirmed', holdStatus: false, remarks: 'In testing phase' },
-  { id: 'INQ_06', inquiryCode: 'INQ_06', client: 'JSW Energy Ltd', project: 'Busduct System 2000A', amount: '3100000', contactPerson: 'Karan Shah', email: 'karan@jsw.in', phone: '+91 97129 88776', date: '2026-07-05', status: 'Offer Sent', holdStatus: false, remarks: 'Revised quote requested' },
-  { id: 'INQ_07', inquiryCode: 'INQ_07', client: 'BHEL Engineering', project: 'Generator Control Panel', amount: '2280000', contactPerson: 'Ramesh Gupta', email: 'ramesh@bhel.in', phone: '+91 99789 22334', date: '2026-06-28', status: 'Confirmed', holdStatus: false, remarks: 'Assembly started' },
-  { id: 'INQ_08', inquiryCode: 'INQ_08', client: 'GMR Airports Pvt Ltd', project: 'Main Switchboard MSB-1', amount: '1940000', contactPerson: 'Deepak Kumar', email: 'deepak@gmr.in', phone: '+91 98980 55667', date: '2026-06-24', status: 'Unconfirmed', holdStatus: false, remarks: 'Initial discussion' }
-];
+const DEFAULT_INQUIRIES: Inquiry[] = [];
 
 export default function InquiriesPage() {
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
@@ -64,7 +55,9 @@ export default function InquiriesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
-  const { isAdmin, isManager } = useAuth();
+  const { user } = useAuth();
+  const isAdmin = user?.isAdmin || user?.role === 'Admin';
+  const isManager = user?.role === 'Manager';
 
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -90,10 +83,14 @@ export default function InquiriesPage() {
 
   const [deletingInquiry, setDeletingInquiry] = useState<Inquiry | null>(null);
 
+  const [formError, setFormError] = useState<string>('');
+
   // Fetch inquiries from backend API
   const fetchInquiries = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/inquiries`);
+      const res = await fetch(`${API_BASE_URL}/api/inquiries`, {
+        headers: getAuthHeaders()
+      });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -140,7 +137,7 @@ export default function InquiriesPage() {
     try {
       const res = await fetch(`${API_BASE_URL}/api/inquiries/${targetId}/hold`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ reason: reasonText })
       });
       if (res.ok) {
@@ -154,15 +151,57 @@ export default function InquiriesPage() {
   // Add Inquiry Handler
   const handleAddInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
+
+    const clientVal = (formInquiry.client || '').trim();
+    const projectVal = (formInquiry.project || '').trim();
+    const personVal = (formInquiry.contactPerson || '').trim();
+    const emailVal = (formInquiry.email || '').trim();
+    const phoneVal = (formInquiry.phone || '').trim();
+
+    // Client-side validations for mandatory fields
+    if (!clientVal) {
+      setFormError('Client / Company Name is required.');
+      return;
+    }
+    if (!projectVal) {
+      setFormError('Project Description / Panel Type is required.');
+      return;
+    }
+    const numAmount = Number(formInquiry.amount);
+    if (!formInquiry.amount || isNaN(numAmount) || numAmount <= 0) {
+      setFormError('Quoted Amount (₹) must be a positive number greater than 0.');
+      return;
+    }
+    if (!personVal) {
+      setFormError('Contact Person Name is required.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailVal || !emailRegex.test(emailVal)) {
+      setFormError('Contact Email is required and must follow standard format (e.g. client@company.com).');
+      return;
+    }
+    const phoneRegex = /^\+?[0-9\s-]{8,15}$/;
+    if (!phoneVal || !phoneRegex.test(phoneVal)) {
+      setFormError('Contact Phone is required and must follow standard format (e.g. +91 98000 00000).');
+      return;
+    }
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/inquiries`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formInquiry)
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({
+          ...formInquiry,
+          amount: numAmount
+        })
       });
+
       if (res.ok) {
         await fetchInquiries();
         setIsAddModalOpen(false);
+        setFormError('');
         setFormInquiry({
           client: '',
           project: '',
@@ -174,9 +213,13 @@ export default function InquiriesPage() {
           status: 'Inquiry Received',
           remarks: ''
         });
+      } else {
+        const data = await res.json();
+        setFormError(data.error || data.details?.[0]?.message || 'Failed to create inquiry on backend.');
       }
     } catch (err) {
       console.error('Failed to add inquiry:', err);
+      setFormError('Network error while saving inquiry.');
     }
   };
 
@@ -187,8 +230,11 @@ export default function InquiriesPage() {
     try {
       const res = await fetch(`${API_BASE_URL}/api/inquiries/${formInquiry.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formInquiry)
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({
+          ...formInquiry,
+          amount: Number(formInquiry.amount) || 0
+        })
       });
       if (res.ok) {
         await fetchInquiries();
@@ -204,7 +250,8 @@ export default function InquiriesPage() {
     if (!deletingInquiry) return;
     try {
       const res = await fetch(`${API_BASE_URL}/api/inquiries/${deletingInquiry.id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getAuthHeaders()
       });
       if (res.ok) {
         await fetchInquiries();
@@ -222,7 +269,7 @@ export default function InquiriesPage() {
     try {
       const res = await fetch(`${API_BASE_URL}/api/inquiries/${inquiryId}/hold`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ reason })
       });
       if (res.ok) fetchInquiries();
@@ -242,7 +289,8 @@ export default function InquiriesPage() {
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/inquiries/${inquiryId}/resume`, {
-        method: 'PUT'
+        method: 'PUT',
+        headers: getAuthHeaders()
       });
       if (res.ok) fetchInquiries();
     } catch (err) {
@@ -359,6 +407,7 @@ export default function InquiriesPage() {
                 status: 'Inquiry Received',
                 remarks: ''
               });
+              setFormError('');
               setIsAddModalOpen(true);
             }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer active:scale-95"
@@ -728,9 +777,16 @@ export default function InquiriesPage() {
 
             <form onSubmit={handleAddInquiry} className="p-6 space-y-4">
               
+              {formError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 flex items-center gap-2">
+                  <AlertTriangle size={16} className="shrink-0 text-rose-600" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-                  Client / Company Name
+                  Client / Company Name <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -744,7 +800,7 @@ export default function InquiriesPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-                  Project Description / Panel Type
+                  Project Description / Panel Type <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -759,10 +815,12 @@ export default function InquiriesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-                    Quoted Amount (₹)
+                    Quoted Amount (₹) <span className="text-rose-500">*</span>
                   </label>
                   <input
-                    type="text"
+                    type="number"
+                    min="1"
+                    step="any"
                     required
                     placeholder="e.g. 1650000"
                     value={formInquiry.amount}
@@ -773,7 +831,7 @@ export default function InquiriesPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-                    Inquiry Date
+                    Inquiry Date <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -788,10 +846,11 @@ export default function InquiriesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-                    Contact Person Name
+                    Contact Person Name <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
+                    required
                     placeholder="e.g. Rajesh Kumar"
                     value={formInquiry.contactPerson}
                     onChange={(e) => setFormInquiry({ ...formInquiry, contactPerson: e.target.value })}
@@ -808,7 +867,7 @@ export default function InquiriesPage() {
                     onChange={(e) => setFormInquiry({ ...formInquiry, status: e.target.value as any })}
                     className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
                   >
-                    <option value="Inquiry Received">Inquiry Received</option>
+                    <option value="Inquiry Received">Inquiry Received (Default)</option>
                     <option value="Offer Sent">Offer Sent</option>
                     <option value="Confirmed">Confirmed (Order Won)</option>
                     <option value="Unconfirmed">Unconfirmed / Pending</option>
@@ -818,23 +877,31 @@ export default function InquiriesPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-                  Contact Email & Phone
+                  Contact Email & Phone <span className="text-rose-500">*</span>
                 </label>
                 <div className="grid grid-cols-2 gap-3">
-                  <input
-                    type="email"
-                    placeholder="client@company.com"
-                    value={formInquiry.email}
-                    onChange={(e) => setFormInquiry({ ...formInquiry, email: e.target.value })}
-                    className="w-full px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="+91 98000 00000"
-                    value={formInquiry.phone}
-                    onChange={(e) => setFormInquiry({ ...formInquiry, phone: e.target.value })}
-                    className="w-full px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
+                  <div>
+                    <input
+                      type="email"
+                      required
+                      placeholder="client@company.com"
+                      value={formInquiry.email}
+                      onChange={(e) => setFormInquiry({ ...formInquiry, email: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                    <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">Must include @ and .com</span>
+                  </div>
+                  <div>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="+91 98000 00000"
+                      value={formInquiry.phone}
+                      onChange={(e) => setFormInquiry({ ...formInquiry, phone: e.target.value })}
+                      className="w-full px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                    <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">Standard Indian / Int'l code</span>
+                  </div>
                 </div>
               </div>
 
@@ -845,7 +912,7 @@ export default function InquiriesPage() {
                 <textarea
                   rows={2}
                   placeholder="e.g. Single line diagram submitted. Advance expected."
-                  value={formInquiry.remarks}
+                  value={formInquiry.remarks || ''}
                   onChange={(e) => setFormInquiry({ ...formInquiry, remarks: e.target.value })}
                   className="w-full p-3 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
                 />
@@ -956,7 +1023,7 @@ export default function InquiriesPage() {
                 </label>
                 <textarea
                   rows={2}
-                  value={formInquiry.remarks}
+                  value={formInquiry.remarks || ''}
                   onChange={(e) => setFormInquiry({ ...formInquiry, remarks: e.target.value })}
                   className="w-full p-3 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
                 />
@@ -1075,7 +1142,7 @@ export default function InquiriesPage() {
                   rows={3}
                   required
                   placeholder="e.g. Client requested temporary hold on design approvals..."
-                  value={holdReasonInput}
+                  value={holdReasonInput || ''}
                   onChange={(e) => setHoldReasonInput(e.target.value)}
                   className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                 />

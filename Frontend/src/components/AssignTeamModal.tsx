@@ -35,7 +35,7 @@ export function AssignTeamModal({ inquiryId, onClose }: AssignTeamModalProps) {
 
   const fetchTeam = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/${inquiryId}/team`);
+      const res = await fetch(`${API_BASE_URL}/api/projects/${inquiryId}/team`);
       if (res.ok) setTeam(await res.json());
     } catch (e) {
       console.error(e);
@@ -44,7 +44,7 @@ export function AssignTeamModal({ inquiryId, onClose }: AssignTeamModalProps) {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/employees`);
+      const res = await fetch(`${API_BASE_URL}/api/employees`);
       if (res.ok) {
         const data = await res.json();
         setEmployees(data);
@@ -58,7 +58,7 @@ export function AssignTeamModal({ inquiryId, onClose }: AssignTeamModalProps) {
 
   const addMember = async (employeeId: string, role: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/${inquiryId}/team`, {
+      const res = await fetch(`${API_BASE_URL}/api/projects/${inquiryId}/team`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ employeeId, role })
@@ -74,7 +74,7 @@ export function AssignTeamModal({ inquiryId, onClose }: AssignTeamModalProps) {
 
   const removeMember = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/team/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/projects/team/${id}`, {
         method: "DELETE"
       });
       if (res.ok) {

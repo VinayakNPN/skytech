@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Next.js
+.next/
+**/out/
+
+# Logs
+*.log
+**/logs/
+
+# SQLite & Database
+*.db
+*.db-journal
+
+# Temporary test files
+*.tmp*
+*_test.xlsx

@@ -52,6 +52,7 @@ app.use(cors({
 app.use(express.json());
 
 // Public Routes
+app.use('/auth', authRoutes);
 app.use('/api/auth', authRoutes);
 
 // Protected API Routes

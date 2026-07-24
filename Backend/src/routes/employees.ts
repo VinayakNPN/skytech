@@ -3,6 +3,7 @@ import { prisma } from '../db/prisma';
 import { logSystemEvent } from '../data/mockData';
 import { validateBody, createEmployeeSchema } from '../validators';
 import { authorize } from '../middleware/authorize';
+import bcrypt from 'bcryptjs';
 
 const router = Router();
 
@@ -49,6 +50,7 @@ router.post('/', authorize('employees', 'write'), validateBody(createEmployeeSch
       }
     }
     const empCode = `EMP-${String(nextNum).padStart(3, '0')}`;
+    const defaultPasswordHash = await bcrypt.hash('password123', 10);
 
     const newEmp = await prisma.employee.create({
       data: {
@@ -58,7 +60,8 @@ router.post('/', authorize('employees', 'write'), validateBody(createEmployeeSch
         department: req.body.department,
         designation: req.body.designation,
         role: req.body.role || 'Engineer',
-        status: req.body.status || 'Active'
+        status: req.body.status || 'Active',
+        passwordHash: defaultPasswordHash
       }
     });
 

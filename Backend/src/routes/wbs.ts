@@ -2,8 +2,11 @@ import { Router } from 'express';
 import { prisma } from '../db/prisma';
 import { logSystemEvent } from '../data/mockData';
 import { validateBody, createWBSTaskSchema } from '../validators';
+import multer from 'multer';
+import * as XLSX from 'xlsx';
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 // GET all WBS phases with tasks from Database
 router.get('/', async (req, res) => {
@@ -213,6 +216,60 @@ router.get('/phases', async (req, res) => {
   } catch (err: any) {
     console.error('[DB Error] GET /api/wbs/phases:', err);
     res.status(500).json({ error: 'Failed to fetch WBS phases pipeline' });
+  }
+});
+
+// POST /api/wbs/upload-excel
+router.post('/upload-excel', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    let tasksCreated = 0;
+
+    const sheetName = workbook.SheetNames.find(sn => 
+      ['wbs', 'tasks', 'schedule', 'programme'].some(k => sn.toLowerCase().includes(k))
+    ) || workbook.SheetNames[0];
+
+    const sheet = workbook.Sheets[sheetName];
+    if (sheet) {
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+      for (const row of rows) {
+        const wbsCode = row['WBS Code'] || row['WBS'] || row['Code'] || row['wbsCode'];
+        const name = row['Task Name'] || row['Name'] || row['Task'] || row['name'];
+        if (wbsCode && name) {
+          const phaseCode = String(wbsCode).split('.')[0] + '.0';
+          const phase = await prisma.wBSPhase.findFirst({
+            where: { wbsCode: phaseCode }
+          }) || await prisma.wBSPhase.findFirst();
+
+          if (phase) {
+            const status = String(row['Status'] || 'NOT STARTED').toUpperCase();
+            const planHours = Number(row['Plan Hours'] || row['Planned Hours'] || 8);
+            const actualHours = Number(row['Actual Hours'] || 0);
+
+            await prisma.wBSTask.create({
+              data: {
+                wbsCode: String(wbsCode).trim(),
+                name: String(name).trim(),
+                phaseId: phase.id,
+                owner: row['Owner'] || row['Responsible'] || 'Assigned Eng',
+                planHours,
+                actualHours,
+                status: ['DONE', 'IN PROGRESS', 'NOT STARTED'].includes(status) ? status : 'NOT STARTED',
+                progress: status === 'DONE' ? 100 : (status === 'IN PROGRESS' ? 50 : 0)
+              }
+            });
+            tasksCreated++;
+          }
+        }
+      }
+    }
+
+    res.json({ message: `WBS Excel imported successfully! Added ${tasksCreated} tasks.`, tasksCreated });
+  } catch (err: any) {
+    console.error('WBS Excel upload failed:', err);
+    res.status(500).json({ error: 'Failed to parse WBS Excel' });
   }
 });
 

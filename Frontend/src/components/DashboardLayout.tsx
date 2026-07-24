@@ -145,7 +145,43 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return active ? active.name : 'Skytech Program Management System';
   };
 
-  if (loading) return <div className="h-screen w-screen flex items-center justify-center bg-[#F8FAFC]">Loading...</div>;
+  const [projectsList, setProjectsList] = useState<any[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('skytech_selected_project_id');
+      if (saved) setSelectedProjectId(saved);
+    }
+
+    const fetchProjects = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/inquiries`);
+        if (res.ok) {
+          const data = await res.json();
+          setProjectsList(data);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchProjects();
+
+    const handleProjectEvent = (e: any) => {
+      const saved = localStorage.getItem('skytech_selected_project_id');
+      if (saved) setSelectedProjectId(saved);
+    };
+    window.addEventListener('projectChanged', handleProjectEvent);
+    return () => window.removeEventListener('projectChanged', handleProjectEvent);
+  }, []);
+
+  const handleSelectProject = (id: string) => {
+    setSelectedProjectId(id);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('skytech_selected_project_id', id);
+      window.dispatchEvent(new CustomEvent('projectChanged', { detail: id }));
+    }
+  };
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] text-slate-800 font-sans overflow-hidden">
@@ -176,8 +212,32 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </button>
           </div>
 
+          {/* ACTIVE PROGRAMME Dropdown Select Box (Reference Image 2) */}
+          <div className="px-3 pt-3 pb-1 flex-shrink-0">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 block mb-1.5">
+              ACTIVE PROGRAMME
+            </span>
+            <div className="relative">
+              <select
+                value={selectedProjectId}
+                onChange={(e) => handleSelectProject(e.target.value)}
+                className="w-full bg-[#06101D] border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-200 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer appearance-none pr-8"
+              >
+                <option value="ALL">Select Project...</option>
+                {projectsList.map((p) => (
+                  <option key={p.id} value={p.inquiryCode || p.id} className="bg-[#0B1728] text-white">
+                    {p.inquiryCode || p.id} - {p.client}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-2.5 pointer-events-none text-slate-400">
+                <ChevronLeft size={14} className="-rotate-90" />
+              </div>
+            </div>
+          </div>
+
           {/* Quick Search Input (Matching Reference Design) */}
-          <div className="px-3 pt-4 pb-2 flex-shrink-0">
+          <div className="px-3 pt-2 pb-2 flex-shrink-0">
             <div className="relative">
               <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
               <input

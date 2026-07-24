@@ -94,9 +94,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const can = (module: keyof EmployeePermissions, action: 'read' | 'write' | 'delete') => {
-    if (!user) return false;
-    if (user.isAdmin) return true;
-    const modulePerms = user.permissions?.[module];
+    if (!user || user.isAdmin) return true;
+    let permissions: any = user.permissions;
+    if (typeof permissions === 'string') {
+      try {
+        permissions = JSON.parse(permissions);
+      } catch (e) {
+        permissions = {};
+      }
+    }
+    const modulePerms = permissions?.[module];
     if (!modulePerms) return false;
     return (modulePerms as any)[action] === true;
   };

@@ -33,6 +33,7 @@ model Inquiry {
   orders        Order[]
   wbsTasks      WBSTask[]
   teamMembers   ProjectTeam[]
+  jobs          Job[]
 }
 
 // 2. Confirmed Orders & Manufacturing Jobs
@@ -160,3 +161,69 @@ model ProjectTeam {
 
   @@unique([inquiryId, employeeId])
 }
+
+// 8. Excel-based Store Inventory Management Models
+model Job {
+  id          String       @id @default(uuid())
+  jobNo       String       @unique // "JOB-01", "JOB-02"
+  clientName  String?
+  location    String?
+  startDate   DateTime?    @default(now())
+  status      String       @default("Running") // "Running", "Completed", "On Hold"
+  inquiryId   String?      
+  inquiry     Inquiry?     @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  stockIssues StockIssue[]
+}
+
+model StockItem {
+  id            String         @id @default(uuid())
+  itemCode      String         @unique // "MCB-006", "CONT-001"
+  description   String
+  make          String?        // "Schneider Electric", "Siemens"
+  partNo        String?
+  category      String         // "Switchgear Parts", "Cable", etc.
+  unit          String         @default("Nos") // "Nos", "Mtr", "Kg"
+  openingStock  Float          @default(0)
+  minStockLevel Float          @default(0)
+  unitRate      Float          @default(0)
+  status        String         @default("Active") // "Active", "Inactive"
+  locationRack  String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  stockReceipts StockReceipt[]
+  stockIssues   StockIssue[]
+}
+
+model StockReceipt {
+  id         String    @id @default(uuid())
+  receiptNo  String    @unique // "GRN-001"
+  date       DateTime  @default(now())
+  itemCode   String
+  stockItem  StockItem @relation(fields: [itemCode], references: [itemCode], onDelete: Cascade)
+  qtyIn      Float
+  supplier   String?
+  invoiceNo  String?
+  receivedBy String?
+  remarks    String?
+  createdAt  DateTime  @default(now())
+}
+
+model StockIssue {
+  id        String    @id @default(uuid())
+  issueNo   String    @unique // "ISS-001"
+  date      DateTime  @default(now())
+  jobNo     String
+  job       Job       @relation(fields: [jobNo], references: [jobNo], onDelete: Cascade)
+  itemCode  String
+  stockItem StockItem @relation(fields: [itemCode], references: [itemCode], onDelete: Cascade)
+  qtyOut    Float
+  issuedTo  String?
+  issuedBy  String?
+  remarks   String?
+  createdAt DateTime  @default(now())
+}
+

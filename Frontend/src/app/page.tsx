@@ -273,12 +273,7 @@ const INQUIRY_DATABASE: InquiryItem[] = [
   { id: 'INQ_08', client: 'GMR Airports Pvt Ltd', project: 'Main Switchboard MSB-1', amount: '₹ 19,40,000', date: '24 Jun 2026', status: 'Unconfirmed', weeksAgo: 4 }
 ];
 
-const DEFAULT_CONFIRMED_PROJECTS = [
-  { id: 'INQ_01', inquiryCode: 'INQ_01', client: 'Reliance Green Energy', project: '132kV Substation Panel', status: 'Confirmed' },
-  { id: 'INQ_03', inquiryCode: 'INQ_03', client: 'Adani Solar Power', project: 'MCC Panel System', status: 'Confirmed' },
-  { id: 'INQ_05', inquiryCode: 'INQ_05', client: 'Torrent Power Pvt Ltd', project: 'APFC Panel 440V', status: 'Confirmed' },
-  { id: 'INQ_07', inquiryCode: 'INQ_07', client: 'BHEL Engineering', project: 'Generator Control Panel', status: 'Confirmed' }
-];
+const DEFAULT_CONFIRMED_PROJECTS: any[] = [];
 
 /**
  * Per-project phase completion profiles — STRICTLY SEQUENTIAL.
@@ -415,8 +410,8 @@ export default function Dashboard() {
   };
 
   // Phases & Tasks State — initialized with INQ_01 profile, updated on project switch
-  const [phases, setPhases] = useState<PhaseData[]>(() => buildPhasesForProject('INQ_01'));
-  const [selectedPhaseId, setSelectedPhaseId] = useState<string>(() => getNextActivePhaseId(buildPhasesForProject('INQ_01')));
+  const [phases, setPhases] = useState<PhaseData[]>(() => buildPhasesForProject('JOB-01'));
+  const [selectedPhaseId, setSelectedPhaseId] = useState<string>(() => getNextActivePhaseId(buildPhasesForProject('JOB-01')));
   const [departmentFilter, setDepartmentFilter] = useState<string>('All');
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
 
@@ -426,7 +421,7 @@ export default function Dashboard() {
 
   // Active Project Selector State (R1)
   const [confirmedProjects, setConfirmedProjects] = useState<any[]>(DEFAULT_CONFIRMED_PROJECTS);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('INQ_01');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('JOB-01');
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -445,9 +440,23 @@ export default function Dashboard() {
         console.error('Failed to fetch confirmed projects:', err);
       }
       setConfirmedProjects(DEFAULT_CONFIRMED_PROJECTS);
-      setSelectedProjectId(DEFAULT_CONFIRMED_PROJECTS[0].id);
+      if (DEFAULT_CONFIRMED_PROJECTS.length > 0) {
+        setSelectedProjectId(DEFAULT_CONFIRMED_PROJECTS[0].id);
+      }
     };
     fetchProjects();
+
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('skytech_selected_project_id');
+      if (saved) setSelectedProjectId(saved);
+    }
+
+    const handleProjectEvent = (e: any) => {
+      const saved = localStorage.getItem('skytech_selected_project_id');
+      if (saved) setSelectedProjectId(saved);
+    };
+    window.addEventListener('projectChanged', handleProjectEvent);
+    return () => window.removeEventListener('projectChanged', handleProjectEvent);
   }, []);
 
   // Currently selected project object
@@ -665,17 +674,8 @@ export default function Dashboard() {
     <div className="space-y-6">
       {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
-        {/* Left side: Project Selection Dropdown (R1) */}
+        {/* Left side: History warning if viewing past dates */}
         <div className="flex flex-col gap-2">
-          <div className="w-80">
-            <span className="text-[10px] font-bold text-slate-500 tracking-wider uppercase mb-1 block">Active Project</span>
-            <ProjectDropdown
-              projects={confirmedProjects}
-              selectedProjectId={selectedProjectId}
-              onSelectProject={setSelectedProjectId}
-            />
-          </div>
-
           {!isToday && (
             <div className="flex items-center gap-2 bg-amber-50 text-amber-800 border border-amber-200/80 px-3.5 py-1.5 rounded-xl text-xs font-semibold animate-in fade-in">
               <Clock size={14} className="text-amber-600" />
@@ -743,12 +743,8 @@ export default function Dashboard() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleSetPreset(yesterdayDay, yesterdayMonth, yesterdayYear)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      selectedDay === yesterdayDay && selectedMonth === yesterdayMonth && selectedYear === yesterdayYear
-                        ? 'bg-blue-600 text-white shadow-xs' 
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
+                    onClick={() => handleSetPreset(todayDay - 1 > 0 ? todayDay - 1 : 1, todayMonth, todayYear)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all cursor-pointer"
                   >
                     Yesterday
                   </button>
@@ -817,38 +813,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Selected Project Scope Banner */}
-      {currentSelectedProject && (
-        <div className="bg-gradient-to-r from-blue-900 via-slate-900 to-slate-900 text-white p-4 rounded-2xl border border-blue-800/60 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in fade-in">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/40 text-blue-300 flex items-center justify-center flex-shrink-0 font-bold text-xs font-mono">
-              {currentSelectedProject.inquiryCode || currentSelectedProject.id}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold tracking-widest text-blue-300 uppercase">ACTIVE SCOPE:</span>
-                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/70 border border-emerald-800/80 px-2 py-0.5 rounded-md">
-                  Confirmed Order
-                </span>
-              </div>
-              <h2 className="text-sm font-extrabold text-white tracking-wide mt-0.5">
-                {currentSelectedProject.project} <span className="text-slate-400 font-normal">| {currentSelectedProject.client}</span>
-              </h2>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 border-t md:border-t-0 md:border-l border-slate-700/80 pt-2 md:pt-0 md:pl-4 text-xs">
-            <div>
-              <span className="text-[10px] text-slate-400 block font-medium">Project Progress</span>
-              <span className="font-extrabold text-white text-sm">{stats.overallProgress}% Complete</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 block font-medium">Active Department</span>
-              <span className="font-bold text-blue-300 text-xs uppercase">{stats.currentPhase}</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Top 6 KPI Stat Cards Grid — project-scoped */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -1257,7 +1221,7 @@ export default function Dashboard() {
                 </div>
 
                 <textarea
-                  value={activePhaseData.remark}
+                  value={activePhaseData.remark || ''}
                   onChange={(e) => handleRemarkChange(activePhaseData.id, e.target.value)}
                   placeholder="Type department remarks or notes for this phase..."
                   rows={4}

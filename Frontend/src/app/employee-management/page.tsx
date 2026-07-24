@@ -1602,7 +1602,7 @@ export default function EmployeeManagementPrototype() {
                             placeholder="Provide site status notes..."
                             rows={3}
                             className="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
-                            value={visitForm.notes}
+                            value={visitForm.notes || ''}
                             onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })}
                           />
                         </div>
@@ -1772,7 +1772,7 @@ export default function EmployeeManagementPrototype() {
                             placeholder="Details about leave..."
                             rows={3}
                             className="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
-                            value={leaveForm.reason}
+                            value={leaveForm.reason || ''}
                             onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
                           />
                         </div>
@@ -2106,7 +2106,7 @@ export default function EmployeeManagementPrototype() {
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Notes / Site Findings</label>
                 <textarea
                   rows={3}
-                  value={editingVisit.notes}
+                  value={editingVisit.notes || ''}
                   onChange={(e) => setEditingVisit({ ...editingVisit, notes: e.target.value })}
                   className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />

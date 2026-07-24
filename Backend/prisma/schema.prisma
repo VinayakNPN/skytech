@@ -34,6 +34,7 @@ model Inquiry {
   wbsTasks      WBSTask[]
   teamMembers   ProjectTeam[]
   jobs          Job[]
+  runningJobs   RunningJob[]
 }
 
 // 2. Confirmed Orders & Manufacturing Jobs
@@ -83,6 +84,8 @@ model WBSTask {
   progress    Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  assignments WBSTaskAssignment[]
 }
 
 // 4. Production Phase Department Checklists & Remarks
@@ -121,8 +124,13 @@ model Employee {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  attendances   Attendance[]
-  projectTeams  ProjectTeam[]
+  attendances        Attendance[]
+  projectTeams       ProjectTeam[]
+  taskAssignments    WBSTaskAssignment[]
+  visitReports       VisitReport[]
+  leaveApplications  LeaveApplication[]
+  runningJobs        RunningJob[]
+  salarySlips        SalarySlip[]
 }
 
 model Attendance {
@@ -226,4 +234,71 @@ model StockIssue {
   remarks   String?
   createdAt DateTime  @default(now())
 }
+
+// 9. Employee Hub & ERP Models
+model WBSTaskAssignment {
+  id          String   @id @default(uuid())
+  wbsTaskId   String
+  wbsTask     WBSTask  @relation(fields: [wbsTaskId], references: [id], onDelete: Cascade)
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  assignedAt  DateTime @default(now())
+
+  @@unique([wbsTaskId, employeeId])
+}
+
+model VisitReport {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  clientName  String
+  location    String
+  purpose     String
+  visitDate   DateTime @default(now())
+  remarks     String?
+  createdAt   DateTime @default(now())
+}
+
+model LeaveApplication {
+  id           String   @id @default(uuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType    String   // "Full Day", "Half Day - AM", "Half Day - PM"
+  fromDate     DateTime
+  toDate       DateTime
+  halfDayTime  String?
+  reason       String
+  status       String   @default("Pending") // "Pending", "Approved", "Rejected"
+  routedToRole String   @default("HR")
+  createdAt    DateTime @default(now())
+}
+
+model RunningJob {
+  id          String    @id @default(uuid())
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  inquiryId   String?
+  inquiry     Inquiry?  @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
+  description String
+  progress    Int       @default(0)
+  startDate   DateTime  @default(now())
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model SalarySlip {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  month       String
+  year        Int
+  basicSalary Float
+  allowances  Float    @default(0)
+  deductions  Float    @default(0)
+  netSalary   Float
+  createdAt   DateTime @default(now())
+
+  @@unique([employeeId, month, year])
+}
+
 

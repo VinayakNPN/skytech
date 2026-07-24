@@ -1430,101 +1430,62 @@ export default function EmployeeManagementPrototype() {
               {activeTab === 'tasks' && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-                    <h2 className="text-xl font-bold text-slate-900">Task Management</h2>
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-900">Task Management</h2>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Employee tasks are derived directly from Work Breakdown Structure (WBS) assignments.
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Assign Task Form */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4 text-left">
-                      <h3 className="font-bold text-sm text-slate-800 border-b pb-2">Assign New Task</h3>
-                      <form onSubmit={handleAddTask} className="space-y-3">
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase">Task Title</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Busbar alignment check"
-                            className="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
-                            value={taskForm.title}
-                            onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase">Assignee</label>
-                          <select
-                            className="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
-                            value={taskForm.assignedTo}
-                            onChange={(e) => setTaskForm({ ...taskForm, assignedTo: e.target.value })}
-                          >
-                            <option value="">-- Choose Employee --</option>
-                            {employees.map(e => (
-                              <option key={e.id} value={e.name}>{e.name} ({e.designation})</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase">Due Date</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. 25 Jun"
-                            className="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
-                            value={taskForm.dueDate}
-                            onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })}
-                          />
-                        </div>
-                        <button
-                          type="submit"
-                          className="w-full bg-blue-600 text-white font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-900/10 mt-4"
-                        >
-                          <PlusCircle size={14} />
-                          Assign Task
-                        </button>
-                      </form>
+                  {/* Task List Table (Full Width - WBS Derived) */}
+                  <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-left space-y-4">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <h3 className="font-bold text-sm text-slate-800">WBS Assigned Tasks</h3>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Assigned via WBS Dashboard</span>
                     </div>
-
-                    {/* Task List Table */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm lg:col-span-2 text-left space-y-4">
-                      <div className="flex items-center justify-between border-b pb-2">
-                        <h3 className="font-bold text-sm text-slate-800">Active Task List</h3>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase">Click Status Pill to Advance Status</span>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs text-left">
-                          <thead>
-                            <tr className="border-b border-slate-100 text-slate-400 font-bold">
-                              <th className="py-2.5">Task Description</th>
-                              <th className="py-2.5">Assignee</th>
-                              <th className="py-2.5">Due Date</th>
-                              <th className="py-2.5 text-right">Status</th>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-slate-400 font-bold">
+                            <th className="py-2.5">WBS Code</th>
+                            <th className="py-2.5">Job No</th>
+                            <th className="py-2.5">Task Description</th>
+                            <th className="py-2.5">Assignee</th>
+                            <th className="py-2.5 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tasks.length === 0 && (
+                            <tr>
+                              <td colSpan={5} className="text-center py-6 text-slate-400">
+                                No tasks assigned to employees yet. Assign tasks via the WBS page.
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {tasks.map((task) => (
-                              <tr key={task.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                                <td className="py-3 font-semibold text-slate-800 max-w-[200px] truncate">{task.title}</td>
-                                <td className="py-3 text-slate-500 font-medium">{task.assignedTo}</td>
-                                <td className="py-3 font-bold text-slate-500">{task.dueDate}</td>
-                                <td className="py-3 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleTaskStatus(task.id, task.status)}
-                                    className={`text-[9px] font-extrabold px-2 py-0.5 rounded border shadow-sm active:scale-95 transition-transform ${
-                                      task.status === 'In Progress'
-                                        ? 'bg-amber-50 border-amber-200 text-amber-700'
-                                        : task.status === 'Assigned'
-                                        ? 'bg-blue-50 border-blue-200 text-blue-700'
-                                        : task.status === 'Done'
-                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                        : 'bg-rose-50 border-rose-200 text-rose-700'
-                                    }`}
-                                  >
-                                    {task.status}
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          )}
+                          {tasks.map((task: any) => (
+                            <tr key={task.id || task.assignmentId} className="border-b border-slate-50 hover:bg-slate-50/50">
+                              <td className="py-3 font-mono font-bold text-slate-500">{task.wbsCode || '1.1'}</td>
+                              <td className="py-3 font-mono font-bold text-blue-600">
+                                <span className="bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{task.jobNo || 'N/A'}</span>
+                              </td>
+                              <td className="py-3 font-semibold text-slate-800">{task.title}</td>
+                              <td className="py-3 text-slate-600 font-medium">{task.assignedTo || task.assignedToCode}</td>
+                              <td className="py-3 text-right">
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded border shadow-sm ${
+                                  task.status === 'DONE'
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                    : task.status === 'IN PROGRESS'
+                                    ? 'bg-amber-50 border-amber-200 text-amber-700'
+                                    : 'bg-slate-100 border-slate-200 text-slate-600'
+                                }`}>
+                                  {task.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>

@@ -1,184 +1,380 @@
 import { Router } from 'express';
-import { 
-  mockEmployees,
-  mockEmployeeAttendance,
-  mockEmployeeTasks,
-  mockVisitReports,
-  mockLeaveApplications,
-  mockRunningJobs,
-  mockSalarySlips,
-  getEmployeeDashboardStats,
-  clockEmployeeIn,
-  createEmployeeTask,
-  updateEmployeeTaskStatus,
-  createVisitReport,
-  updateVisitReport,
-  deleteVisitReport,
-  applyForLeave,
-  updateLeaveStatus,
-  updateRunningJobProgress,
-  logSystemEvent
-} from '../data/mockData';
+import { prisma } from '../db/prisma';
+import { logSystemEvent } from '../data/mockData';
+import { determineLeaveRoutingRole } from '../utils/leaveRouting';
+import { sendLeaveApplicationEmail, sendLeaveStatusEmail } from '../utils/emailService';
 
 const router = Router();
 
 // GET Employee Management Dashboard Summary data
-router.get('/dashboard', (req, res) => {
-  logSystemEvent('API Server', 'GET /api/employee-management/dashboard', 'info');
-  
-  // Sort today's attendance: put specific employees from screenshot first
-  const orderOfDisplay = ['EMP-011', 'EMP-012', 'EMP-013', 'EMP-014', 'EMP-015'];
-  const todayAttendance = [...mockEmployeeAttendance].sort((a, b) => {
-    const idxA = orderOfDisplay.indexOf(a.employeeId);
-    const idxB = orderOfDisplay.indexOf(b.employeeId);
-    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-    if (idxA !== -1) return -1;
-    if (idxB !== -1) return 1;
-    return 0;
-  });
+router.get('/dashboard', async (req, res) => {
+  try {
+    logSystemEvent('API Server', 'GET /api/employee-management/dashboard', 'info');
 
-  res.json({
-    stats: getEmployeeDashboardStats(),
-    todayAttendance: todayAttendance.slice(0, 5), // top 5 for dashboard
-    activeTasks: mockEmployeeTasks.slice(0, 4), // top 4 active tasks for dashboard
-    runningJobs: mockRunningJobs.slice(0, 3) // top 3 running jobs for dashboard
-  });
+    const totalEmployees = await prisma.employee.count();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const attendancesToday = await prisma.attendance.findMany({
+      where: { date: { gte: today } },
+      include: { employee: { select: { name: true, empCode: true, department: true } } }
+    });
+
+    const presentCount = attendancesToday.filter(a => a.status === 'Present' || a.status === 'Late').length;
+    const leaveCount = await prisma.leaveApplication.count({
+      where: { status: 'Approved', fromDate: { lte: new Date() }, toDate: { gte: new Date() } }
+    });
+
+    const pendingLeaves = await prisma.leaveApplication.count({ where: { status: 'Pending' } });
+    const activeWbsTasksCount = await prisma.wBSTask.count({ where: { status: 'IN PROGRESS' } });
+
+    const recentAttendance = await prisma.attendance.findMany({
+      take: 5,
+      orderBy: { date: 'desc' },
+      include: { employee: { select: { name: true, empCode: true, department: true } } }
+    });
+
+    const activeTasks = await prisma.wBSTaskAssignment.findMany({
+      take: 5,
+      include: {
+        wbsTask: {
+          include: {
+            inquiry: {
+              include: { jobs: true }
+            }
+          }
+        },
+        employee: { select: { name: true, empCode: true } }
+      }
+    });
+
+    const runningJobs = await prisma.runningJob.findMany({
+      take: 5,
+      include: { employee: { select: { name: true, empCode: true } } }
+    });
+
+    res.json({
+      stats: {
+        totalEmployees,
+        presentToday: presentCount,
+        onLeaveToday: leaveCount,
+        pendingLeaves,
+        activeTasks: activeWbsTasksCount
+      },
+      todayAttendance: recentAttendance,
+      activeTasks,
+      runningJobs
+    });
+  } catch (err: any) {
+    console.error('[DB Error] GET /api/employee-management/dashboard:', err);
+    res.status(500).json({ error: 'Failed to fetch HR dashboard stats' });
+  }
 });
 
 // GET all attendance logs
-router.get('/attendance', (req, res) => {
-  logSystemEvent('API Server', 'GET /api/employee-management/attendance', 'info');
-  res.json(mockEmployeeAttendance);
+router.get('/attendance', async (req, res) => {
+  try {
+    logSystemEvent('API Server', 'GET /api/employee-management/attendance', 'info');
+    const logs = await prisma.attendance.findMany({
+      include: { employee: { select: { name: true, empCode: true, department: true } } },
+      orderBy: { date: 'desc' }
+    });
+    res.json(logs);
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch attendance logs' });
+  }
 });
 
 // POST clock-in
-router.post('/attendance/clock', (req, res) => {
-  const { employeeId, time } = req.body;
-  if (!employeeId || !time) {
-    return res.status(400).json({ error: 'employeeId and time are required' });
+router.post('/attendance/clock', async (req, res) => {
+  try {
+    const { employeeId, time, status = 'Present' } = req.body;
+    if (!employeeId || !time) {
+      return res.status(400).json({ error: 'employeeId and time are required' });
+    }
+
+    const record = await prisma.attendance.create({
+      data: {
+        employeeId,
+        date: new Date(),
+        clockIn: time,
+        status
+      },
+      include: { employee: { select: { name: true, empCode: true, department: true } } }
+    });
+
+    res.json(record);
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to clock attendance' });
   }
-  const result = clockEmployeeIn(employeeId, time);
-  if (!result) {
-    return res.status(404).json({ error: 'Employee not found' });
-  }
-  res.json({ stats: result, attendance: mockEmployeeAttendance });
 });
 
-// GET all tasks
-router.get('/tasks', (req, res) => {
-  logSystemEvent('API Server', 'GET /api/employee-management/tasks', 'info');
-  res.json(mockEmployeeTasks);
-});
+// GET all WBS-derived employee tasks (Client R5 requirement)
+router.get('/tasks', async (req, res) => {
+  try {
+    logSystemEvent('API Server', 'GET /api/employee-management/tasks', 'info');
+    const { employeeId } = req.query;
+    let whereClause: any = {};
+    if (employeeId) whereClause.employeeId = String(employeeId);
 
-// POST new task
-router.post('/tasks', (req, res) => {
-  const { title, assignedTo, dueDate } = req.body;
-  if (!title || !assignedTo) {
-    return res.status(400).json({ error: 'title and assignedTo are required' });
-  }
-  const newTask = createEmployeeTask({ title, assignedTo, dueDate });
-  res.status(201).json(newTask);
-});
+    const assignments = await prisma.wBSTaskAssignment.findMany({
+      where: whereClause,
+      include: {
+        wbsTask: {
+          include: {
+            inquiry: {
+              include: { jobs: true }
+            }
+          }
+        },
+        employee: { select: { id: true, name: true, empCode: true } }
+      }
+    });
 
-// PUT update task status
-router.put('/tasks/:id/status', (req, res) => {
-  const { status } = req.body;
-  if (!status) {
-    return res.status(400).json({ error: 'status is required' });
+    const tasks = assignments.map(a => {
+      const jobNo = a.wbsTask.inquiry?.jobs?.[0]?.jobNo || 'N/A';
+      return {
+        id: a.wbsTask.id,
+        assignmentId: a.id,
+        title: a.wbsTask.name,
+        wbsCode: a.wbsTask.wbsCode,
+        jobNo,
+        assignedTo: a.employee.name,
+        assignedToCode: a.employee.empCode,
+        status: a.wbsTask.status,
+        progress: a.wbsTask.progress,
+        planHours: a.wbsTask.planHours,
+        actualHours: a.wbsTask.actualHours
+      };
+    });
+
+    res.json(tasks);
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch employee tasks' });
   }
-  const updated = updateEmployeeTaskStatus(req.params.id, status);
-  if (!updated) {
-    return res.status(404).json({ error: 'Task not found' });
-  }
-  res.json(updated);
 });
 
 // GET all visit reports
-router.get('/visits', (req, res) => {
-  logSystemEvent('API Server', 'GET /api/employee-management/visits', 'info');
-  res.json(mockVisitReports);
+router.get('/visits', async (req, res) => {
+  try {
+    logSystemEvent('API Server', 'GET /api/employee-management/visits', 'info');
+    const reports = await prisma.visitReport.findMany({
+      include: { employee: { select: { name: true, empCode: true } } },
+      orderBy: { visitDate: 'desc' }
+    });
+    res.json(reports);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch visit reports' });
+  }
 });
 
 // POST new visit report
-router.post('/visits', (req, res) => {
-  const { title, client, location, engineer, date, notes, status } = req.body;
-  if (!title || !client || !location || !engineer) {
-    return res.status(400).json({ error: 'title, client, location and engineer are required' });
-  }
-  const newVisit = createVisitReport({ title, client, location, engineer, date, notes, status });
-  res.status(201).json(newVisit);
-});
+router.post('/visits', async (req, res) => {
+  try {
+    const { employeeId, clientName, location, purpose, remarks } = req.body;
+    if (!employeeId || !clientName || !location || !purpose) {
+      return res.status(400).json({ error: 'employeeId, clientName, location and purpose are required' });
+    }
 
-// PUT update visit report
-router.put('/visits/:id', (req, res) => {
-  const updated = updateVisitReport(req.params.id, req.body);
-  if (!updated) {
-    return res.status(404).json({ error: 'Visit report not found' });
+    const report = await prisma.visitReport.create({
+      data: {
+        employeeId,
+        clientName,
+        location,
+        purpose,
+        remarks
+      },
+      include: { employee: { select: { name: true, empCode: true } } }
+    });
+
+    res.status(201).json(report);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to create visit report' });
   }
-  res.json(updated);
 });
 
 // DELETE visit report
-router.delete('/visits/:id', (req, res) => {
-  const deleted = deleteVisitReport(req.params.id);
-  if (!deleted) {
-    return res.status(404).json({ error: 'Visit report not found' });
+router.delete('/visits/:id', async (req, res) => {
+  try {
+    await prisma.visitReport.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Visit report deleted' });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to delete visit report' });
   }
-  res.json(deleted);
 });
 
 // GET all leaves
-router.get('/leaves', (req, res) => {
-  logSystemEvent('API Server', 'GET /api/employee-management/leaves', 'info');
-  res.json(mockLeaveApplications);
+router.get('/leaves', async (req, res) => {
+  try {
+    logSystemEvent('API Server', 'GET /api/employee-management/leaves', 'info');
+    const { employeeId } = req.query;
+    let whereClause: any = {};
+    if (employeeId) whereClause.employeeId = String(employeeId);
+
+    const leaves = await prisma.leaveApplication.findMany({
+      where: whereClause,
+      include: { employee: { select: { name: true, empCode: true, role: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(leaves);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch leave applications' });
+  }
 });
 
-// POST apply leave
-router.post('/leaves', (req, res) => {
-  const { employeeId, employeeName, startDate, endDate, type, reason } = req.body;
-  if (!startDate || !endDate || !type || !reason) {
-    return res.status(400).json({ error: 'startDate, endDate, type and reason are required' });
+// GET pending leaves for approval
+router.get('/leaves/pending', async (req, res) => {
+  try {
+    const { role } = req.query;
+    let whereClause: any = { status: 'Pending' };
+    
+    if (role && role !== 'Admin') {
+      whereClause.routedToRole = String(role);
+    } // Admins can see all pending leaves by default
+
+    const leaves = await prisma.leaveApplication.findMany({
+      where: whereClause,
+      include: { employee: { select: { name: true, empCode: true, role: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(leaves);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch pending leave applications' });
   }
-  const newLeave = applyForLeave({ employeeId, employeeName, startDate, endDate, type, reason });
-  res.status(201).json(newLeave);
+});
+
+// POST apply leave (Supports Half Day - AM / PM and Full Day per R6, with role routing per R7)
+router.post('/leaves', async (req, res) => {
+  try {
+    const { employeeId, leaveType, fromDate, toDate, halfDayTime, reason } = req.body;
+    if (!employeeId || !leaveType || !fromDate || !toDate || !reason) {
+      return res.status(400).json({ error: 'employeeId, leaveType, fromDate, toDate and reason are required' });
+    }
+
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    let routedToRole = 'HR';
+    if (employee) {
+      routedToRole = determineLeaveRoutingRole(employee.role);
+    }
+
+    const leave = await prisma.leaveApplication.create({
+      data: {
+        employeeId,
+        leaveType,
+        fromDate: new Date(fromDate),
+        toDate: new Date(toDate),
+        halfDayTime,
+        reason,
+        routedToRole
+      },
+      include: { employee: { select: { name: true, empCode: true } } }
+    });
+
+    // Notify approver (Mocked approver email for now, in prod fetch actual approver email)
+    const approverEmail = `approver-${routedToRole.toLowerCase()}@skytech.com`;
+    await sendLeaveApplicationEmail(approverEmail, employee?.name || 'Unknown', leaveType, new Date(fromDate), new Date(toDate));
+
+    res.status(201).json(leave);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to submit leave application' });
+  }
 });
 
 // PUT approve/reject leave
-router.put('/leaves/:id/status', (req, res) => {
-  const { status } = req.body;
-  if (!status || (status !== 'Approved' && status !== 'Rejected')) {
-    return res.status(400).json({ error: 'status must be Approved or Rejected' });
+router.put('/leaves/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!status || (status !== 'Approved' && status !== 'Rejected')) {
+      return res.status(400).json({ error: 'status must be Approved or Rejected' });
+    }
+    const updated = await prisma.leaveApplication.update({
+      where: { id: req.params.id },
+      data: { status },
+      include: { employee: { select: { name: true, email: true } } }
+    });
+
+    await sendLeaveStatusEmail(updated.employee.email, updated.employee.name, status, updated.leaveType);
+
+    res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to update leave status' });
   }
-  const updated = updateLeaveStatus(req.params.id, status);
-  if (!updated) {
-    return res.status(404).json({ error: 'Leave request not found' });
-  }
-  res.json(updated);
 });
 
 // GET all running jobs
-router.get('/jobs', (req, res) => {
-  logSystemEvent('API Server', 'GET /api/employee-management/jobs', 'info');
-  res.json(mockRunningJobs);
+router.get('/jobs', async (req, res) => {
+  try {
+    logSystemEvent('API Server', 'GET /api/employee-management/jobs', 'info');
+    const jobs = await prisma.runningJob.findMany({
+      include: { employee: { select: { name: true, empCode: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(jobs);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch running jobs' });
+  }
 });
 
 // PUT update running job progress
-router.put('/jobs/:id/progress', (req, res) => {
-  const { progress, status } = req.body;
-  if (progress === undefined) {
-    return res.status(400).json({ error: 'progress is required' });
+router.put('/jobs/:id/progress', async (req, res) => {
+  try {
+    const { progress } = req.body;
+    if (progress === undefined) {
+      return res.status(400).json({ error: 'progress is required' });
+    }
+    const updated = await prisma.runningJob.update({
+      where: { id: req.params.id },
+      data: { progress: Number(progress) }
+    });
+    res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to update job progress' });
   }
-  const updated = updateRunningJobProgress(req.params.id, progress, status);
-  if (!updated) {
-    return res.status(404).json({ error: 'Job not found' });
-  }
-  res.json(updated);
 });
 
 // GET all salary slips
-router.get('/salary', (req, res) => {
-  logSystemEvent('API Server', 'GET /api/employee-management/salary', 'info');
-  res.json(mockSalarySlips);
+router.get('/salary', async (req, res) => {
+  try {
+    logSystemEvent('API Server', 'GET /api/employee-management/salary', 'info');
+    const slips = await prisma.salarySlip.findMany({
+      include: { employee: { select: { name: true, empCode: true, designation: true } } },
+      orderBy: [{ year: 'desc' }, { month: 'desc' }]
+    });
+    res.json(slips);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch salary slips' });
+  }
+});
+
+// POST create salary slip
+router.post('/salary', async (req, res) => {
+  try {
+    const { employeeId, month, year, basicSalary, allowances = 0, deductions = 0 } = req.body;
+    if (!employeeId || !month || !year || basicSalary === undefined) {
+      return res.status(400).json({ error: 'employeeId, month, year and basicSalary are required' });
+    }
+    const netSalary = Number(basicSalary) + Number(allowances) - Number(deductions);
+
+    const slip = await prisma.salarySlip.create({
+      data: {
+        employeeId,
+        month,
+        year: Number(year),
+        basicSalary: Number(basicSalary),
+        allowances: Number(allowances),
+        deductions: Number(deductions),
+        netSalary
+      },
+      include: { employee: { select: { name: true, empCode: true, designation: true } } }
+    });
+
+    res.status(201).json(slip);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to create salary slip' });
+  }
 });
 
 export default router;

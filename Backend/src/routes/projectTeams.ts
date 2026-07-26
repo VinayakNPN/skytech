@@ -24,7 +24,7 @@ router.get('/:inquiryId/team', async (req, res) => {
     const team = await prisma.projectTeam.findMany({
       where: { inquiryId },
       include: {
-        employee: { select: { id: true, name: true, department: true, designation: true } }
+        employee: { select: { id: true, name: true, department: true, designation: true, email: true, empCode: true } }
       }
     });
     res.json(team);
@@ -37,23 +37,29 @@ router.get('/:inquiryId/team', async (req, res) => {
 router.post('/:inquiryId/team', authorize(['Admin', 'Manager']), async (req, res) => {
   try {
     const { inquiryId } = req.params;
-    const { employeeId, role } = req.body;
+    const { employeeId, role, department } = req.body;
+
+    const isLeadershipRole = role === 'Program Manager' || role === 'Project Lead';
+    const assignedDepartment = isLeadershipRole ? null : (department || null);
 
     const member = await prisma.projectTeam.create({
       data: {
         inquiryId,
         employeeId,
         role: role || 'Member',
+        department: assignedDepartment,
         assignedBy: req.user?.id
       },
-      include: { employee: true }
+      include: { employee: { select: { id: true, name: true, department: true, designation: true, email: true, empCode: true } } }
     });
 
     res.json(member);
-  } catch (err) {
-    res.status(400).json({ error: 'Failed to add team member or already exists' });
+  } catch (err: any) {
+    console.error('[ProjectTeam Error]', err);
+    res.status(400).json({ error: 'Failed to add team member or assignment already exists' });
   }
 });
+
 
 // DELETE remove member from project (Admin/Manager)
 router.delete('/team/:id', authorize(['Admin', 'Manager']), async (req, res) => {

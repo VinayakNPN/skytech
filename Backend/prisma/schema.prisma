@@ -163,12 +163,14 @@ model ProjectTeam {
   inquiry     Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
   employeeId  String
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  role        String   // "Lead", "Member"
+  role        String   // "Program Manager", "Project Lead", "Department Lead", "Member"
+  department  String?  // e.g. "Mechanical", "Design", "Electrical" (null for Project-Wide roles)
   assignedAt  DateTime @default(now())
   assignedBy  String?  // Admin/Manager ID who assigned them
 
-  @@unique([inquiryId, employeeId])
+  @@unique([inquiryId, employeeId, department])
 }
+
 
 // 8. Excel-based Store Inventory Management Models
 model Job {

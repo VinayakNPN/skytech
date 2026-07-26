@@ -19,4 +19,39 @@ This document tracks daily progress, commits, and major milestones achieved duri
 - **Error Handling:** Integrated Zod validation, Winston logging, and global error middleware to harden the backend against improper payloads.
 
 ---
-*Note: We have temporarily deferred the deletion of the Order Management system while considering the best architectural approach for inventory management mapping.*
+
+## July 24, 2026
+
+### Order Management Removal & WBS Single Truth (Phase 2)
+- **Order System Removal:** Fully deleted legacy `/orders` route, `orders.ts` backend endpoints, and mock order models.
+- **WBS-Centric Dashboard Data:** Redirected all dashboard data requests (KPI stats, phase pipeline, checklist items) to `/api/wbs`, `/api/wbs/stats`, and `/api/wbs/phases`.
+- **Project Dropdown Selector:** Created `ProjectDropdown.tsx` to allow switching active project context directly from the main dashboard cockpit.
+
+### Authentication, RBAC & Project Teams (Phase 3)
+- **SSO & Auth Infrastructure:** Integrated Microsoft Entra ID MSAL authentication (`msalConfig.ts`), JWT session validation middleware, and `AuthContext.tsx`.
+- **Project Team Assignments:** Implemented `ProjectTeam` schema, `projectTeams.ts` route, and `AssignTeamModal.tsx` UI component to assign project leads and members.
+- **RBAC Permissions:** Added role-based access control (`permissions.ts`) across Admin, Manager, HR, Engineer, Supervisor, and Operator roles.
+
+### Excel Inventory Schema Integration (Phase 4)
+- **1:1 Excel Mapping:** Created `Job`, `StockItem`, `StockReceipt`, and `StockIssue` models aligned 1:1 with `Skytech_Store_Inventory_Management.xlsx`.
+- **Job-Item Join Table (R9):** Implemented core relationship joining `jobNo` (job_id) and `itemCode` (item_id) via `StockIssue` for material tracking.
+- **Auto Job Creation:** Enabled automated `Job` record creation whenever an Inquiry status transitions to `Confirmed`.
+
+---
+
+## July 25, 2026
+
+### Employee Hub Database Persistence (Phase 5)
+- **WBS Task Alignment (R5):** Replaced standalone employee tasks with WBS task assignments (`WBSTaskAssignment`), establishing WBS as the single source for task management.
+- **WBS Task Assignment Modal:** Built `AssignEmployeeModal.tsx` allowing managers to assign team members to specific WBS tasks.
+- **Database Persistence:** Migrated Attendance (`AttendanceTab.tsx`), Visit Reports, Running Jobs, and Salary Slips from mock arrays to Prisma DB models.
+
+### Leave System & HR Workflows (Phase 6)
+- **Flexible Leave Types (R6):** Added support for `Full Day`, `Half Day - AM`, and `Half Day - PM` leave applications.
+- **Hierarchical Approval Routing (R7):** Implemented automated role-based routing (`leaveRouting.ts`) directing leave applications to the designated approver (Manager -> Admin, Staff -> HR).
+- **Email Notifications:** Integrated `emailService.ts` using `nodemailer` for automated email alerts on leave application submission and status updates.
+- **Frontend Leave UI:** Updated `/employee-management` UI with leave application modals and pending approval sub-tabs.
+
+---
+*Note: Order Management has been fully removed from the codebase. WBS serves as the single source of truth for project execution.*
+

@@ -113,6 +113,36 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => clearInterval(interval);
   }, []);
 
+  const [projectsList, setProjectsList] = useState<any[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('skytech_selected_project_id');
+      if (saved) setSelectedProjectId(saved);
+    }
+
+    const fetchProjects = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/inquiries`);
+        if (res.ok) {
+          const data = await res.json();
+          setProjectsList(data);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchProjects();
+
+    const handleProjectEvent = (e: any) => {
+      const saved = localStorage.getItem('skytech_selected_project_id');
+      if (saved) setSelectedProjectId(saved);
+    };
+    window.addEventListener('projectChanged', handleProjectEvent);
+    return () => window.removeEventListener('projectChanged', handleProjectEvent);
+  }, []);
+
   // Bypass standard layout for employee management sub-application or login page
   if (pathname?.startsWith('/employee-management') || pathname === '/login') {
     return <>{children}</>;
@@ -145,35 +175,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return active ? active.name : 'Skytech Program Management System';
   };
 
-  const [projectsList, setProjectsList] = useState<any[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('skytech_selected_project_id');
-      if (saved) setSelectedProjectId(saved);
-    }
-
-    const fetchProjects = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/inquiries`);
-        if (res.ok) {
-          const data = await res.json();
-          setProjectsList(data);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchProjects();
-
-    const handleProjectEvent = (e: any) => {
-      const saved = localStorage.getItem('skytech_selected_project_id');
-      if (saved) setSelectedProjectId(saved);
-    };
-    window.addEventListener('projectChanged', handleProjectEvent);
-    return () => window.removeEventListener('projectChanged', handleProjectEvent);
-  }, []);
 
   const handleSelectProject = (id: string) => {
     setSelectedProjectId(id);

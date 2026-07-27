@@ -1456,6 +1456,7 @@ export default function EmployeeManagementPrototype() {
                             <th className="py-2.5">WBS Code</th>
                             <th className="py-2.5">Job No</th>
                             <th className="py-2.5">Task Description</th>
+                            <th className="py-2.5">Department Scope</th>
                             <th className="py-2.5">Assignee</th>
                             <th className="py-2.5 text-right">Status</th>
                           </tr>
@@ -1463,8 +1464,8 @@ export default function EmployeeManagementPrototype() {
                         <tbody>
                           {tasks.length === 0 && (
                             <tr>
-                              <td colSpan={5} className="text-center py-6 text-slate-400">
-                                No tasks assigned to employees yet. Assign tasks via the WBS page.
+                              <td colSpan={6} className="text-center py-6 text-slate-400">
+                                No tasks assigned to your department scope yet. Assign tasks via WBS or project team settings.
                               </td>
                             </tr>
                           )}
@@ -1475,9 +1476,14 @@ export default function EmployeeManagementPrototype() {
                                 <span className="bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{task.jobNo || 'N/A'}</span>
                               </td>
                               <td className="py-3 font-semibold text-slate-800">{task.title}</td>
+                              <td className="py-3 font-semibold">
+                                <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-200">
+                                  {task.department || task.phaseName || 'General'}
+                                </span>
+                              </td>
                               <td className="py-3 text-slate-600 font-medium">{task.assignedTo || task.assignedToCode}</td>
                               <td className="py-3 text-right">
-                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded border shadow-sm ${
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded border shadow-2xs ${
                                   task.status === 'DONE'
                                     ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                                     : task.status === 'IN PROGRESS'
@@ -1491,6 +1497,7 @@ export default function EmployeeManagementPrototype() {
                           ))}
                         </tbody>
                       </table>
+
                     </div>
                   </div>
                 </div>

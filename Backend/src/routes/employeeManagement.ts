@@ -112,50 +112,119 @@ router.post('/attendance/clock', async (req, res) => {
 });
 
 // GET all WBS-derived employee tasks (Client R5 requirement)
+// GET all WBS-derived employee tasks with Department Scoping & Program Manager Leadership Bypass
 router.get('/tasks', async (req, res) => {
   try {
     logSystemEvent('API Server', 'GET /api/employee-management/tasks', 'info');
     const { employeeId } = req.query;
-    let whereClause: any = {};
-    if (employeeId) whereClause.employeeId = String(employeeId);
 
-    const assignments = await prisma.wBSTaskAssignment.findMany({
-      where: whereClause,
-      include: {
-        wbsTask: {
-          include: {
-            inquiry: {
-              include: { jobs: true }
+    let isLeadership = false;
+    let userDepts: string[] = [];
+
+    if (employeeId) {
+      const emp = await prisma.employee.findUnique({
+        where: { id: String(employeeId) },
+        include: { projectTeams: true }
+      });
+
+      if (emp) {
+        if (emp.isAdmin || emp.role === 'Admin' || emp.role === 'Manager') {
+          isLeadership = true;
+        } else {
+          // Check for Program Manager or Project Lead role
+          const hasLeadershipAssignment = emp.projectTeams.some(
+            pt => pt.role === 'Program Manager' || pt.role === 'Project Lead' || pt.department === null
+          );
+
+          if (hasLeadershipAssignment) {
+            isLeadership = true;
+          } else {
+            const teamDepts = emp.projectTeams
+              .map(pt => pt.department)
+              .filter((d): d is string => Boolean(d));
+
+            if (teamDepts.length > 0) {
+              userDepts = teamDepts;
+            } else if (emp.department) {
+              userDepts = [emp.department];
             }
           }
-        },
-        employee: { select: { id: true, name: true, empCode: true } }
+        }
       }
+    } else {
+      isLeadership = true; // If no employeeId provided (global view), return all
+    }
+
+    // Fetch all WBS tasks with phase, assignments, and inquiry details
+    const allWbsTasks = await prisma.wBSTask.findMany({
+      include: {
+        phase: true,
+        inquiry: {
+          include: { jobs: true }
+        },
+        assignments: {
+          include: { employee: { select: { id: true, name: true, empCode: true } } }
+        }
+      },
+      orderBy: { wbsCode: 'asc' }
     });
 
-    const tasks = assignments.map(a => {
-      const jobNo = a.wbsTask.inquiry?.jobs?.[0]?.jobNo || 'N/A';
+    // Helper to check if a task belongs to user's assigned department(s)
+    const matchesUserDepartment = (phaseName: string, phaseBadge: string) => {
+      if (userDepts.length === 0) return true;
+      const combined = `${phaseName} ${phaseBadge}`.toLowerCase();
+      return userDepts.some(dept => {
+        const d = dept.toLowerCase();
+        return combined.includes(d) || d.includes(phaseBadge.toLowerCase());
+      });
+    };
+
+    // Filter tasks based on leadership vs department scope
+    const filteredTasks = allWbsTasks.filter(task => {
+      if (isLeadership) return true;
+
+      // Check if user is directly assigned
+      const isDirectlyAssigned = task.assignments.some(
+        a => a.employeeId === String(employeeId) || a.employee?.id === String(employeeId)
+      );
+
+      // Check if task belongs to user's department
+      const isDeptTask = matchesUserDepartment(task.phase.name, task.phase.badge);
+
+      return isDirectlyAssigned || isDeptTask;
+    });
+
+    const formattedTasks = filteredTasks.map(task => {
+      const jobNo = task.inquiry?.jobs?.[0]?.jobNo || 'N/A';
+      const assignedEmployeeNames = task.assignments.map(a => a.employee.name).join(', ') || task.owner || 'Unassigned';
+      const assignedEmployeeCode = task.assignments[0]?.employee.empCode || '';
+
       return {
-        id: a.wbsTask.id,
-        assignmentId: a.id,
-        title: a.wbsTask.name,
-        wbsCode: a.wbsTask.wbsCode,
+        id: task.id,
+        assignmentId: task.assignments[0]?.id || task.id,
+        title: task.name,
+        wbsCode: task.wbsCode,
         jobNo,
-        assignedTo: a.employee.name,
-        assignedToCode: a.employee.empCode,
-        status: a.wbsTask.status,
-        progress: a.wbsTask.progress,
-        planHours: a.wbsTask.planHours,
-        actualHours: a.wbsTask.actualHours
+        phaseName: task.phase.name,
+        department: task.phase.badge,
+        inquiryCode: task.inquiry?.inquiryCode || '',
+        project: task.inquiry?.project || '',
+        assignedTo: assignedEmployeeNames,
+        assignedToCode: assignedEmployeeCode,
+        status: task.status,
+        progress: task.progress,
+        planHours: task.planHours,
+        actualHours: task.actualHours
       };
     });
 
-    res.json(tasks);
+    res.json(formattedTasks);
   } catch (err: any) {
-    console.error(err);
+    console.error('[Tasks API Error]', err);
     res.status(500).json({ error: 'Failed to fetch employee tasks' });
   }
 });
+
 
 // GET all visit reports
 router.get('/visits', async (req, res) => {

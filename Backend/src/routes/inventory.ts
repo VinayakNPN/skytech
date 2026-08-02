@@ -320,7 +320,7 @@ function parseSheetRows(sheet: XLSX.WorkSheet): Record<string, any>[] {
 }
 
 // 11. POST /api/inventory/upload-excel (Excel Import Endpoint)
-router.post("/upload-excel", upload.single("file"), async (req: Request, res: Response) => {
+router.post("/upload-excel", upload.single("file"), async (req: any, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No Excel file provided" });
@@ -334,7 +334,7 @@ router.post("/upload-excel", upload.single("file"), async (req: Request, res: Re
 
     // Helper to find sheet by name flexible
     const findSheet = (keywords: string[]) => {
-      const name = workbook.SheetNames.find((sn) =>
+      const name = workbook.SheetNames.find((sn: string) =>
         keywords.some((k) => sn.toLowerCase().includes(k.toLowerCase()))
       );
       return name ? workbook.Sheets[name] : null;

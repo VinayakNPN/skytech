@@ -20,12 +20,12 @@ const validateBody = (schema) => {
 };
 exports.validateBody = validateBody;
 exports.createInquirySchema = zod_1.z.object({
-    client: zod_1.z.string().min(1, 'Client name is required'),
-    project: zod_1.z.string().min(1, 'Project name is required'),
-    amount: zod_1.z.coerce.number().min(0, 'Amount must be positive'),
-    contactPerson: zod_1.z.string().optional().default(''),
-    email: zod_1.z.string().email('Invalid email').or(zod_1.z.literal('')).optional().default(''),
-    phone: zod_1.z.string().optional().default(''),
+    client: zod_1.z.string().min(1, 'Client / Company Name is required'),
+    project: zod_1.z.string().min(1, 'Project Description / Panel Type is required'),
+    amount: zod_1.z.coerce.number().positive('Quoted Amount must be greater than 0'),
+    contactPerson: zod_1.z.string().min(1, 'Contact Person Name is required'),
+    email: zod_1.z.string().min(1, 'Email is required').email('Invalid email format (must include @ and .com)'),
+    phone: zod_1.z.string().min(1, 'Contact Phone is required').regex(/^\+?[0-9\s-]{8,15}$/, 'Invalid phone format (e.g. +91 98000 00000 or 10-digit)'),
     date: zod_1.z.string().optional(),
     status: zod_1.z.enum(['Inquiry Received', 'Offer Sent', 'Confirmed', 'Unconfirmed']).optional().default('Inquiry Received'),
     remarks: zod_1.z.string().optional().default('')

@@ -38,7 +38,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col bg-[#F8FAFC]">
+      <body className="min-h-full flex flex-col bg-[#F8FAFC]" suppressHydrationWarning>
         <AuthProvider>
           <DashboardLayout>
             <ErrorBoundary>{children}</ErrorBoundary>

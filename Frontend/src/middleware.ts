@@ -4,10 +4,9 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const token = request.cookies.get('token')?.value;
   const isLoginPage = request.nextUrl.pathname.startsWith('/login');
-  const isHomePage = request.nextUrl.pathname === '/';
 
-  // If no token and not on login page or home page, redirect to login
-  if (!token && !isLoginPage && !isHomePage) {
+  // If no token and not on login page, redirect to login
+  if (!token && !isLoginPage) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 

@@ -80,17 +80,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Set cookie for middleware
     document.cookie = `token=${token}; path=/; max-age=28800; samesite=lax`;
     setUser(userData);
-    if (userData.isAdmin) {
-      router.push('/');
-    } else {
-      router.push('/employee-management');
-    }
+    const targetPath = userData.isAdmin ? '/' : '/employee-management';
+    window.location.href = targetPath;
   };
 
   const logout = () => {
-    document.cookie = 'token=; path=/; max-age=0';
+    document.cookie = 'token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     setUser(null);
-    router.push('/login');
+    window.location.href = '/login';
   };
 
   const can = (module: keyof EmployeePermissions, action: 'read' | 'write' | 'delete') => {

@@ -199,10 +199,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex-1 flex flex-col min-h-0">
           {/* Logo Brand Header */}
           <div className="h-16 flex items-center justify-between px-4 bg-[#07111E] border-b border-slate-800/80 flex-shrink-0">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">
-                S
-              </div>
+            <Link href="/" className="flex items-center gap-2.5">
+              <img src="/logo.png" alt="SkyTech Logo" className="h-8 w-auto object-contain shrink-0" />
               <div className="flex flex-col">
                 <span className="font-extrabold text-sm tracking-widest text-white">SKYTECH</span>
                 <span className="text-[9px] text-slate-400 tracking-wider">SYSTEMS SPMS</span>

@@ -1,12 +1,17 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const prisma_1 = require("../db/prisma");
 const mockData_1 = require("../data/mockData");
 const validators_1 = require("../validators");
+const authorize_1 = require("../middleware/authorize");
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const router = (0, express_1.Router)();
 // GET all employees from Database
-router.get('/', async (req, res) => {
+router.get('/', (0, authorize_1.authorize)('employees', 'read'), async (req, res) => {
     try {
         const employees = await prisma_1.prisma.employee.findMany({
             orderBy: { empCode: 'asc' }
@@ -19,7 +24,7 @@ router.get('/', async (req, res) => {
     }
 });
 // PUT update employee status in Database
-router.put('/:id/status', async (req, res) => {
+router.put('/:id/status', (0, authorize_1.authorize)('employees', 'write'), async (req, res) => {
     try {
         const updated = await prisma_1.prisma.employee.update({
             where: { id: req.params.id },
@@ -34,10 +39,10 @@ router.put('/:id/status', async (req, res) => {
     }
 });
 // POST create new employee account in Database
-router.post('/', (0, validators_1.validateBody)(validators_1.createEmployeeSchema), async (req, res) => {
+router.post('/', (0, authorize_1.authorize)('employees', 'write'), (0, validators_1.validateBody)(validators_1.createEmployeeSchema), async (req, res) => {
     try {
         const lastEmp = await prisma_1.prisma.employee.findFirst({
-            orderBy: { createdAt: 'desc' }
+            orderBy: { empCode: 'desc' }
         });
         let nextNum = 1;
         if (lastEmp && lastEmp.empCode) {
@@ -47,6 +52,7 @@ router.post('/', (0, validators_1.validateBody)(validators_1.createEmployeeSchem
             }
         }
         const empCode = `EMP-${String(nextNum).padStart(3, '0')}`;
+        const defaultPasswordHash = await bcryptjs_1.default.hash('password123', 10);
         const newEmp = await prisma_1.prisma.employee.create({
             data: {
                 empCode,
@@ -55,7 +61,8 @@ router.post('/', (0, validators_1.validateBody)(validators_1.createEmployeeSchem
                 department: req.body.department,
                 designation: req.body.designation,
                 role: req.body.role || 'Engineer',
-                status: req.body.status || 'Active'
+                status: req.body.status || 'Active',
+                passwordHash: defaultPasswordHash
             }
         });
         (0, mockData_1.logSystemEvent)('API Server', `New employee registered in DB: ${newEmp.name} (${newEmp.empCode})`, 'info');

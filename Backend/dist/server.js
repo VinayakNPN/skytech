@@ -62,6 +62,7 @@ app.use('/api/employee-management', employeeManagement_1.default);
 app.use('/api/inquiries', inquiries_1.default);
 app.use('/api/wbs', wbs_1.default);
 app.use('/api/projects', projectTeams_1.default);
+app.use('/api/inquiries', projectTeams_1.default);
 // Basic health check
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', service: 'Skytech Program Management System API' });

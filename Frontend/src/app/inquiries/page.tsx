@@ -89,9 +89,10 @@ export default function InquiriesPage() {
   const listRef = useRef<HTMLDivElement>(null);
   // Offer details gated modal state
   const [isOfferDetailsModalOpen, setIsOfferDetailsModalOpen] = useState(false);
-  const [pendingStatusChange, setPendingStatusChange] = useState<{ inquiry: Inquiry; newStatus: string } | null>(null);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ inquiry: Inquiry; newStatus: string; isNew?: boolean } | null>(null);
   const [offerDetails, setOfferDetails] = useState({ sentBy: '', refNo: '' });
   const [offerDetailsError, setOfferDetailsError] = useState('');
+  const [editingInquiryOriginalStatus, setEditingInquiryOriginalStatus] = useState<string>('');
 
   // Fetch inquiries from backend API
   const fetchInquiries = async () => {
@@ -157,23 +158,53 @@ export default function InquiriesPage() {
     const remarkPrefix = `[Offer Sent] By: ${offerDetails.sentBy}, Ref: ${offerDetails.refNo}`;
     const updatedRemarks = remarkPrefix + (pendingStatusChange.inquiry.remarks ? ' | ' + pendingStatusChange.inquiry.remarks : '');
 
-    // Apply the status change via backend
     try {
-      const res = await fetch(`${API_BASE_URL}/api/inquiries/${pendingStatusChange.inquiry.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({
-          ...pendingStatusChange.inquiry,
-          status: 'Offer Sent',
-          remarks: updatedRemarks,
-          amount: Number(pendingStatusChange.inquiry.amount) || 0
-        })
-      });
-      if (res.ok) {
-        await fetchInquiries();
+      if (pendingStatusChange.isNew) {
+        // Creating a new inquiry directly with Offer Sent status
+        const res = await fetch(`${API_BASE_URL}/api/inquiries`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify({
+            ...pendingStatusChange.inquiry,
+            status: 'Offer Sent',
+            remarks: updatedRemarks,
+            amount: Number(pendingStatusChange.inquiry.amount) || 0
+          })
+        });
+        if (res.ok) {
+          await fetchInquiries();
+          setIsAddModalOpen(false);
+          setFormInquiry({
+            client: '',
+            project: '',
+            amount: '',
+            contactPerson: '',
+            email: '',
+            phone: '',
+            date: new Date().toISOString().split('T')[0],
+            status: 'Inquiry Received',
+            remarks: ''
+          });
+        }
+      } else {
+        // Updating an existing inquiry status to Offer Sent
+        const targetId = pendingStatusChange.inquiry.inquiryCode || pendingStatusChange.inquiry.id;
+        const res = await fetch(`${API_BASE_URL}/api/inquiries/${targetId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify({
+            ...pendingStatusChange.inquiry,
+            status: 'Offer Sent',
+            remarks: updatedRemarks,
+            amount: Number(pendingStatusChange.inquiry.amount) || 0
+          })
+        });
+        if (res.ok) {
+          await fetchInquiries();
+        }
       }
     } catch (err) {
-      console.error('Failed to update status:', err);
+      console.error('Failed to update/create status:', err);
     }
 
     setIsOfferDetailsModalOpen(false);
@@ -260,6 +291,27 @@ export default function InquiriesPage() {
       return;
     }
 
+    // If user selected Offer Sent status at creation, prompt for quotation details first
+    if (formInquiry.status === 'Offer Sent') {
+      setPendingStatusChange({
+        inquiry: {
+          ...formInquiry,
+          client: clientVal,
+          project: projectVal,
+          contactPerson: personVal,
+          email: emailVal,
+          phone: phoneVal,
+          amount: String(numAmount)
+        } as Inquiry,
+        newStatus: 'Offer Sent',
+        isNew: true
+      });
+      setOfferDetails({ sentBy: '', refNo: '' });
+      setOfferDetailsError('');
+      setIsOfferDetailsModalOpen(true);
+      return;
+    }
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/inquiries`, {
         method: 'POST',
@@ -299,17 +351,19 @@ export default function InquiriesPage() {
   const handleSaveEditInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formInquiry.id) return;
+    setFormError('');
 
     const phoneVal = (formInquiry.phone || '').trim();
     const cleanPhone = phoneVal.replace(/[\s\-\(\)]/g, '');
     const indianPhoneRegex = /^(?:\+91)?([6-9]\d{9})$/;
     if (!phoneVal || !indianPhoneRegex.test(cleanPhone)) {
-      setFormError('Contact Phone is required and must be a valid 10-digit Indian mobile number (e.g. 9876543210 or +91 9876543210).');
+      setFormError('Contact Phone is required and must be a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9 (e.g. 9876543210 or +91 9876543210).');
       return;
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/inquiries/${formInquiry.id}`, {
+      const targetId = formInquiry.id || formInquiry.inquiryCode;
+      const res = await fetch(`${API_BASE_URL}/api/inquiries/${targetId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({
@@ -320,6 +374,7 @@ export default function InquiriesPage() {
       if (res.ok) {
         await fetchInquiries();
         setIsEditModalOpen(false);
+        setFormError('');
       } else {
         const data = await res.json();
         setFormError(data.error || 'Failed to update inquiry.');
@@ -781,6 +836,8 @@ export default function InquiriesPage() {
                           type="button"
                           onClick={() => {
                             setFormInquiry({ ...inq });
+                            setEditingInquiryOriginalStatus(inq.status);
+                            setFormError('');
                             setIsEditModalOpen(true);
                           }}
                           className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
@@ -1027,6 +1084,12 @@ export default function InquiriesPage() {
             </div>
 
             <form onSubmit={handleSaveEditInquiry} className="p-6 space-y-4">
+              {formError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 flex items-center gap-2">
+                  <AlertTriangle size={14} className="shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
               
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
@@ -1075,9 +1138,9 @@ export default function InquiriesPage() {
                   <select
                     value={formInquiry.status}
                     onChange={(e) => handleStatusChangeAttempt(formInquiry as Inquiry, e.target.value)}
-                    disabled={formInquiry.status === 'Confirmed'}
+                    disabled={editingInquiryOriginalStatus === 'Confirmed'}
                     className={`w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                      formInquiry.status === 'Confirmed' ? 'bg-slate-100 cursor-not-allowed opacity-75' : 'bg-white'
+                      editingInquiryOriginalStatus === 'Confirmed' ? 'bg-slate-100 cursor-not-allowed opacity-75' : 'bg-white'
                     }`}
                   >
                     <option value="Inquiry Received">Inquiry Received</option>
@@ -1085,7 +1148,7 @@ export default function InquiriesPage() {
                     <option value="Confirmed">Confirmed (Order Won)</option>
                     <option value="Unconfirmed">Unconfirmed / Pending</option>
                   </select>
-                  {formInquiry.status === 'Confirmed' && (
+                  {editingInquiryOriginalStatus === 'Confirmed' && (
                     <p className="text-[10px] text-slate-400 font-medium mt-1">Confirmed orders cannot be reverted. Use the On Hold button to pause the project.</p>
                   )}
                 </div>

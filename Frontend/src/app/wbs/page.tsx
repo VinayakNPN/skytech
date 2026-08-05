@@ -243,6 +243,7 @@ export default function WBSPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>(''); // Prompt user to select project or ALL
 
   const [employees, setEmployees] = useState<any[]>([]);
+  const [projectTeamRoster, setProjectTeamRoster] = useState<any[]>([]);
   const [selectedOwnerModalEmployee, setSelectedOwnerModalEmployee] = useState<any | null>(null);
 
   const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({
@@ -309,30 +310,72 @@ export default function WBSPage() {
     fetchEmployees();
   }, []);
 
-  // Department Head resolution for phase
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    const fetchTeam = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/projects/${selectedProjectId}/team`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) setProjectTeamRoster(data);
+        }
+      } catch (e) {
+        console.error('Failed to fetch project team in WBS:', e);
+      }
+    };
+    fetchTeam();
+  }, [selectedProjectId]);
+
+  // Department Head resolution for phase — checks Inquiry Management project team first
   const getDeptHead = (phaseName: string, defaultOwner: string) => {
-    if (employees.length === 0) return defaultOwner;
     const nameLower = phaseName.toLowerCase();
 
-    const match = employees.find(e => {
-      const d = (e.department || '').toLowerCase();
-      const des = (e.designation || '').toLowerCase();
-      const r = (e.role || '').toLowerCase();
+    // 1. Check if a team member was explicitly assigned to this department in Inquiry Management
+    if (projectTeamRoster.length > 0) {
+      const teamMatch = projectTeamRoster.find((member: any) => {
+        const dept = (member.department || member.employee?.department || '').toLowerCase();
+        const role = (member.role || member.employee?.designation || '').toLowerCase();
 
-      if (nameLower.includes('costing') && (d.includes('design') || d.includes('costing') || des.includes('design') || des.includes('costing'))) return true;
-      if (nameLower.includes('store') && (d.includes('store') || des.includes('store'))) return true;
-      if (nameLower.includes('mechanical') && (d.includes('mechanical') || des.includes('mech'))) return true;
-      if (nameLower.includes('assembly') && (d.includes('assembly') || des.includes('assembly'))) return true;
-      if (nameLower.includes('electrical') && (d.includes('electrical') || des.includes('elec'))) return true;
-      if (nameLower.includes('testing') && (d.includes('testing') || des.includes('qc') || des.includes('quality'))) return true;
-      if (nameLower.includes('accounts') && (d.includes('accounts') || d.includes('dispatch') || d.includes('management') || des.includes('accounts'))) return true;
-      if (nameLower.includes('support') && (d.includes('support') || d.includes('service') || des.includes('service'))) return true;
-      if (nameLower.includes('inquiry') && (des.includes('sales') || des.includes('management') || e.name.includes('Vinayak'))) return true;
+        if (nameLower.includes('costing') && (dept.includes('design') || dept.includes('costing') || role.includes('costing'))) return true;
+        if (nameLower.includes('store') && dept.includes('store')) return true;
+        if (nameLower.includes('mechanical') && (dept.includes('mechanical') || dept.includes('mech'))) return true;
+        if (nameLower.includes('assembly') && dept.includes('assembly')) return true;
+        if (nameLower.includes('electrical') && (dept.includes('electrical') || dept.includes('elec'))) return true;
+        if (nameLower.includes('testing') && (dept.includes('testing') || dept.includes('quality') || dept.includes('qc'))) return true;
+        if (nameLower.includes('accounts') && (dept.includes('accounts') || dept.includes('dispatch'))) return true;
+        if (nameLower.includes('support') && (dept.includes('support') || dept.includes('service'))) return true;
+        if (nameLower.includes('inquiry') && (role.includes('manager') || role.includes('lead') || role.includes('program'))) return true;
+        return false;
+      });
 
-      return false;
-    });
+      if (teamMatch) {
+        const empName = teamMatch.employee?.name || teamMatch.name;
+        if (empName) return empName;
+      }
+    }
 
-    return match ? match.name : defaultOwner;
+    // 2. Fallback to employee directory match
+    if (employees.length > 0) {
+      const match = employees.find(e => {
+        const d = (e.department || '').toLowerCase();
+        const des = (e.designation || '').toLowerCase();
+
+        if (nameLower.includes('costing') && (d.includes('design') || d.includes('costing') || des.includes('design') || des.includes('costing'))) return true;
+        if (nameLower.includes('store') && (d.includes('store') || des.includes('store'))) return true;
+        if (nameLower.includes('mechanical') && (d.includes('mechanical') || des.includes('mech'))) return true;
+        if (nameLower.includes('assembly') && (d.includes('assembly') || des.includes('assembly'))) return true;
+        if (nameLower.includes('electrical') && (d.includes('electrical') || des.includes('elec'))) return true;
+        if (nameLower.includes('testing') && (d.includes('testing') || des.includes('qc') || des.includes('quality'))) return true;
+        if (nameLower.includes('accounts') && (d.includes('accounts') || d.includes('dispatch') || d.includes('management') || des.includes('accounts'))) return true;
+        if (nameLower.includes('support') && (d.includes('support') || d.includes('service') || des.includes('service'))) return true;
+        if (nameLower.includes('inquiry') && (des.includes('sales') || des.includes('management') || e.name.includes('Vinayak'))) return true;
+
+        return false;
+      });
+      if (match) return match.name;
+    }
+
+    return defaultOwner;
   };
 
   // Open Owner Details Modal
@@ -436,6 +479,18 @@ export default function WBSPage() {
 
         if (combined.length > 0) {
           setConfirmedProjects(combined);
+          setSelectedProjectId(prev => {
+            if (prev) return prev;
+            const saved = typeof window !== 'undefined' ? localStorage.getItem('skytech_selected_project_id') : null;
+            if (saved && combined.some(p => p.id === saved || p.inquiryCode === saved)) {
+              return saved;
+            }
+            const defaultId = combined[0].inquiryCode || combined[0].id;
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('skytech_selected_project_id', defaultId);
+            }
+            return defaultId;
+          });
         }
       } catch (err) {
         console.error('Fetching confirmed inquiries for WBS fallback:', err);
@@ -444,14 +499,16 @@ export default function WBSPage() {
     fetchConfirmedInquiries();
     fetchWBS();
 
-    // Check if project is explicitly requested via URL parameter
+    // Restore selected project from URL parameter or localStorage
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const urlProj = urlParams.get('project');
+      const savedProj = localStorage.getItem('skytech_selected_project_id');
       if (urlProj) {
         setSelectedProjectId(urlProj);
-      } else {
-        setSelectedProjectId(''); // Prompt user to select project
+        localStorage.setItem('skytech_selected_project_id', urlProj);
+      } else if (savedProj) {
+        setSelectedProjectId(savedProj);
       }
     }
   }, []);
@@ -1543,6 +1600,7 @@ export default function WBSPage() {
         <AssignEmployeeModal
           taskId={assigningTask.id}
           taskName={assigningTask.name}
+          projectId={selectedProjectId}
           currentAssignments={assigningTask.assignments}
           onClose={() => setAssigningTask(null)}
           onUpdate={() => {

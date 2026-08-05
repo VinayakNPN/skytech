@@ -21,8 +21,13 @@ router.get('/', authorize(['Admin', 'Manager', 'HR']), async (req, res) => {
 router.get('/:inquiryId/team', async (req, res) => {
   try {
     const { inquiryId } = req.params;
+    const inq = await prisma.inquiry.findFirst({
+      where: { OR: [{ id: inquiryId }, { inquiryCode: inquiryId }] }
+    });
+    const targetId = inq ? inq.id : inquiryId;
+
     const team = await prisma.projectTeam.findMany({
-      where: { inquiryId },
+      where: { inquiryId: targetId },
       include: {
         employee: { select: { id: true, name: true, department: true, designation: true, email: true, empCode: true } }
       }
@@ -39,12 +44,20 @@ router.post('/:inquiryId/team', authorize(['Admin', 'Manager']), async (req, res
     const { inquiryId } = req.params;
     const { employeeId, role, department } = req.body;
 
+    const inq = await prisma.inquiry.findFirst({
+      where: { OR: [{ id: inquiryId }, { inquiryCode: inquiryId }] }
+    });
+    if (!inq) {
+      return res.status(404).json({ error: 'Inquiry not found' });
+    }
+    const targetId = inq.id;
+
     const isLeadershipRole = role === 'Program Manager' || role === 'Project Lead';
     const assignedDepartment = isLeadershipRole ? null : (department || null);
 
     const member = await prisma.projectTeam.create({
       data: {
-        inquiryId,
+        inquiryId: targetId,
         employeeId,
         role: role || 'Member',
         department: assignedDepartment,

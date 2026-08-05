@@ -10,6 +10,7 @@ import {
   Wrench, 
   ClipboardList, 
   Briefcase, 
+  Users,
   Settings,
   Clock,
   RotateCcw,
@@ -551,10 +552,13 @@ export default function Dashboard() {
     setTeamLoading(true);
     setTeamMembers([]);
     try {
-      // Find the UUID of the currently selected project
       const proj = confirmedProjects.find(p => p.id === selectedProjectId || p.inquiryCode === selectedProjectId);
       const projectUUID = proj?.id || selectedProjectId;
-      const res = await fetch(`${API_BASE_URL}/api/inquiries/${projectUUID}/team`);
+      const projectCode = proj?.inquiryCode || selectedProjectId;
+      let res = await fetch(`${API_BASE_URL}/api/projects/${projectCode}/team`);
+      if (!res.ok) {
+        res = await fetch(`${API_BASE_URL}/api/projects/${projectUUID}/team`);
+      }
       if (res.ok) {
         const data = await res.json();
         setTeamMembers(Array.isArray(data) ? data : []);
@@ -1289,60 +1293,105 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Assigned Team Overlay */}
+      {/* Assigned Team Overlay Modal */}
       {teamOverlayOpen && (
         <div
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4"
           onClick={() => setTeamOverlayOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md animate-in zoom-in-95 duration-150"
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[80vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">Assigned Team</h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  {currentSelectedProject?.project || selectedProjectId}
-                </p>
+            {/* Modal Header */}
+            <div className="px-4 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                  <Users size={15} />
+                </div>
+                <div>
+                  <h3 className="text-xs font-extrabold text-white tracking-wide uppercase">Assigned Team Roster</h3>
+                  <p className="text-[10px] text-slate-300 font-medium truncate max-w-[200px]">
+                    {currentSelectedProject?.project || selectedProjectId}
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setTeamOverlayOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               >
-                <XCircle size={18} />
+                <XCircle size={16} />
               </button>
             </div>
-            <div className="p-6">
+
+            {/* Modal Content - Compact & Scrollable */}
+            <div className="p-3.5 overflow-y-auto max-h-[360px] space-y-2 scrollbar-thin scrollbar-thumb-slate-200">
               {teamLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                  <span className="ml-3 text-xs text-slate-500 font-medium">Loading team data...</span>
+                <div className="flex items-center justify-center py-8 gap-2">
+                  <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs text-slate-500 font-medium">Loading team roster...</span>
                 </div>
               ) : teamMembers.length === 0 ? (
-                <div className="text-center py-8">
-                  <Briefcase size={32} className="text-slate-300 mx-auto mb-3" />
-                  <p className="text-sm font-semibold text-slate-500">No team data available</p>
-                  <p className="text-xs text-slate-400 mt-1">Connect backend to view assigned team members for this project.</p>
+                <div className="text-center py-6 px-4 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                  <Users size={24} className="text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs font-bold text-slate-600">No team members assigned</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Assign team members via Inquiry Management for this project.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {teamMembers.map((member: any, idx: number) => (
-                    <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                      <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-extrabold text-sm flex-shrink-0">
-                        {(member.employee?.name || member.name || '?')[0].toUpperCase()}
+                teamMembers.map((member: any, idx: number) => {
+                  const empName = member.employee?.name || member.name || 'Team Member';
+                  const empCode = member.employee?.empCode || '';
+                  const empDept = member.department || member.employee?.department || '';
+                  const empRole = member.role || member.employee?.designation || 'Member';
+                  const isLeadership = empRole === 'Program Manager' || empRole === 'Project Lead';
+
+                  return (
+                    <div
+                      key={idx}
+                      className="p-2.5 bg-slate-50/80 hover:bg-slate-100/90 rounded-xl border border-slate-100 flex items-center justify-between gap-2.5 transition-all"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-extrabold text-xs flex-shrink-0 border border-emerald-200">
+                          {empName[0].toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-800 truncate">{empName}</span>
+                            {empCode && (
+                              <span className="text-[9px] font-mono font-bold text-slate-400 bg-slate-200/60 px-1 py-0.2 rounded">
+                                {empCode}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-medium block truncate">
+                            {empDept ? `${empDept} • ` : ''}{empRole}
+                          </span>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-800 block">{member.employee?.name || member.name || '—'}</span>
-                        <span className="text-[10px] text-slate-400">{member.role || member.employee?.designation || member.employee?.role || 'Team Member'}</span>
-                      </div>
-                      <span className="ml-auto text-[9px] font-bold px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded-md">
-                        {member.employee?.empCode || ''}
+
+                      <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md flex-shrink-0 border ${
+                        isLeadership
+                          ? 'bg-purple-50 text-purple-700 border-purple-200'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      }`}>
+                        {empRole}
                       </span>
                     </div>
-                  ))}
-                </div>
+                  );
+                })
               )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-3.5 py-2.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-[10px] text-slate-400 font-semibold">
+              <span>{teamMembers.length} active member{teamMembers.length !== 1 ? 's' : ''}</span>
+              <button
+                type="button"
+                onClick={() => setTeamOverlayOpen(false)}
+                className="px-2.5 py-1 text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

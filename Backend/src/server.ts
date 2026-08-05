@@ -64,6 +64,7 @@ app.use('/api/employee-management', employeeManagementRouter);
 app.use('/api/inquiries', inquiriesRouter);
 app.use('/api/wbs', wbsRouter);
 app.use('/api/projects', projectTeamsRouter);
+app.use('/api/inquiries', projectTeamsRouter);
 
 // Basic health check
 app.get('/health', (req, res) => {

@@ -20,20 +20,40 @@ interface TaskAssignment {
 interface AssignEmployeeModalProps {
   taskId: string;
   taskName: string;
+  projectId?: string;
   currentAssignments?: TaskAssignment[];
   onClose: () => void;
   onUpdate: () => void;
 }
 
-export function AssignEmployeeModal({ taskId, taskName, currentAssignments = [], onClose, onUpdate }: AssignEmployeeModalProps) {
+export function AssignEmployeeModal({ taskId, taskName, projectId, currentAssignments = [], onClose, onUpdate }: AssignEmployeeModalProps) {
   const [assignments, setAssignments] = useState<TaskAssignment[]>(currentAssignments);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [projectTeamMemberIds, setProjectTeamMemberIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchEmployees();
-  }, []);
+    if (projectId) {
+      fetchProjectTeam();
+    }
+  }, [projectId]);
+
+  const fetchProjectTeam = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/team`);
+      if (res.ok) {
+        const teamData = await res.json();
+        if (Array.isArray(teamData)) {
+          const ids = new Set<string>(teamData.map((m: any) => m.employeeId || m.employee?.id).filter(Boolean));
+          setProjectTeamMemberIds(ids);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch project team roster:', e);
+    }
+  };
 
   const fetchEmployees = async () => {
     try {
@@ -81,10 +101,16 @@ export function AssignEmployeeModal({ taskId, taskName, currentAssignments = [],
   };
 
   const unassignedEmployees = employees.filter(emp => !assignments.find(a => a.employee.id === emp.id));
-  const filteredEmployees = unassignedEmployees.filter(emp => 
-    emp.name.toLowerCase().includes(search.toLowerCase()) || 
-    emp.empCode.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredEmployees = unassignedEmployees
+    .filter(emp => 
+      emp.name.toLowerCase().includes(search.toLowerCase()) || 
+      emp.empCode.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      const aInTeam = projectTeamMemberIds.has(a.id) ? 1 : 0;
+      const bInTeam = projectTeamMemberIds.has(b.id) ? 1 : 0;
+      return bInTeam - aInTeam;
+    });
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -142,17 +168,29 @@ export function AssignEmployeeModal({ taskId, taskName, currentAssignments = [],
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               {loading && <div className="text-sm text-center text-slate-400 py-4">Loading...</div>}
-              {filteredEmployees.map(emp => (
-                <div key={emp.id} className="flex justify-between items-center p-3 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-blue-200 transition-colors">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-800">{emp.name}</div>
-                    <div className="text-[11px] text-slate-500">{emp.empCode} • {emp.designation}</div>
+              {filteredEmployees.map(emp => {
+                const isProjectRoster = projectTeamMemberIds.has(emp.id);
+                return (
+                  <div key={emp.id} className={`flex justify-between items-center p-3 rounded-xl border transition-colors ${
+                    isProjectRoster ? 'bg-emerald-50/30 border-emerald-200 hover:border-emerald-300' : 'bg-white border-slate-100 hover:border-blue-200'
+                  }`}>
+                    <div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm font-semibold text-slate-800">{emp.name}</span>
+                        {isProjectRoster && (
+                          <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded">
+                            Project Roster
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500">{emp.empCode} • {emp.designation}</div>
+                    </div>
+                    <button onClick={() => addAssignment(emp.id)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg flex items-center gap-1 text-xs font-semibold cursor-pointer">
+                      <Plus size={14} /> Assign
+                    </button>
                   </div>
-                  <button onClick={() => addAssignment(emp.id)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg flex items-center gap-1 text-xs font-semibold">
-                    <Plus size={14} /> Assign
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

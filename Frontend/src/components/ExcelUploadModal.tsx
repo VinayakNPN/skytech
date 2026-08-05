@@ -24,6 +24,7 @@ export function ExcelUploadModal({
   const [result, setResult] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -94,8 +95,6 @@ export function ExcelUploadModal({
       setUploading(false);
     }
   };
-
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">

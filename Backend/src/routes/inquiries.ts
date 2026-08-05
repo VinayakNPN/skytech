@@ -206,8 +206,22 @@ router.put('/:id/resume', async (req, res) => {
 // PUT update inquiry in Database
 router.put('/:id', async (req, res) => {
   try {
+    const targetId = req.params.id;
+    const existing = await prisma.inquiry.findFirst({
+      where: {
+        OR: [
+          { id: targetId },
+          { inquiryCode: targetId }
+        ]
+      }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Inquiry not found' });
+    }
+
     const updated = await prisma.inquiry.update({
-      where: { id: req.params.id },
+      where: { id: existing.id },
       data: {
         ...(req.body.client && { client: req.body.client }),
         ...(req.body.project && { project: req.body.project }),
@@ -238,8 +252,22 @@ router.put('/:id', async (req, res) => {
 // DELETE inquiry from Database
 router.delete('/:id', async (req, res) => {
   try {
+    const targetId = req.params.id;
+    const existing = await prisma.inquiry.findFirst({
+      where: {
+        OR: [
+          { id: targetId },
+          { inquiryCode: targetId }
+        ]
+      }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Inquiry not found' });
+    }
+
     const deleted = await prisma.inquiry.delete({
-      where: { id: req.params.id }
+      where: { id: existing.id }
     });
 
     logSystemEvent('API Server', `Inquiry ${deleted.inquiryCode} deleted from DB`, 'info');

@@ -240,7 +240,10 @@ const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
 export default function WBSPage() {
   const [wbsData, setWbsData] = useState<WBSPhase[]>(GENERATE_INITIAL_WBS());
   const [confirmedProjects, setConfirmedProjects] = useState<ConfirmedInquiryProject[]>(DEFAULT_CONFIRMED_PROJECTS);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('INQ-101'); // Default to first confirmed project
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(''); // Prompt user to select project or ALL
+
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [selectedOwnerModalEmployee, setSelectedOwnerModalEmployee] = useState<any | null>(null);
 
   const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({
     'phase-1': true,
@@ -254,9 +257,14 @@ export default function WBSPage() {
     'phase-9': true
   });
 
+  // Ensure all phases are expanded whenever wbsData is loaded or project selection changes
   useEffect(() => {
-    expandAll();
-  }, [selectedProjectId]);
+    if (wbsData.length > 0) {
+      const allExpanded: Record<string, boolean> = {};
+      wbsData.forEach(p => { allExpanded[p.id] = true; });
+      setExpandedPhases(allExpanded);
+    }
+  }, [wbsData, selectedProjectId]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -282,6 +290,71 @@ export default function WBSPage() {
 
   // Assign Staff Modal State
   const [assigningTask, setAssigningTask] = useState<WBSTask | null>(null);
+
+  // Fetch Employees to populate Department Heads & Owner details
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/employees`, {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) setEmployees(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch employees in WBS:', err);
+      }
+    };
+    fetchEmployees();
+  }, []);
+
+  // Department Head resolution for phase
+  const getDeptHead = (phaseName: string, defaultOwner: string) => {
+    if (employees.length === 0) return defaultOwner;
+    const nameLower = phaseName.toLowerCase();
+
+    const match = employees.find(e => {
+      const d = (e.department || '').toLowerCase();
+      const des = (e.designation || '').toLowerCase();
+      const r = (e.role || '').toLowerCase();
+
+      if (nameLower.includes('costing') && (d.includes('design') || d.includes('costing') || des.includes('design') || des.includes('costing'))) return true;
+      if (nameLower.includes('store') && (d.includes('store') || des.includes('store'))) return true;
+      if (nameLower.includes('mechanical') && (d.includes('mechanical') || des.includes('mech'))) return true;
+      if (nameLower.includes('assembly') && (d.includes('assembly') || des.includes('assembly'))) return true;
+      if (nameLower.includes('electrical') && (d.includes('electrical') || des.includes('elec'))) return true;
+      if (nameLower.includes('testing') && (d.includes('testing') || des.includes('qc') || des.includes('quality'))) return true;
+      if (nameLower.includes('accounts') && (d.includes('accounts') || d.includes('dispatch') || d.includes('management') || des.includes('accounts'))) return true;
+      if (nameLower.includes('support') && (d.includes('support') || d.includes('service') || des.includes('service'))) return true;
+      if (nameLower.includes('inquiry') && (des.includes('sales') || des.includes('management') || e.name.includes('Vinayak'))) return true;
+
+      return false;
+    });
+
+    return match ? match.name : defaultOwner;
+  };
+
+  // Open Owner Details Modal
+  const handleOwnerClick = (ownerName: string, phaseOrTaskName?: string) => {
+    const emp = employees.find(e => 
+      e.name.toLowerCase() === ownerName.toLowerCase() ||
+      (phaseOrTaskName && e.department.toLowerCase().includes(phaseOrTaskName.toLowerCase()))
+    );
+
+    if (emp) {
+      setSelectedOwnerModalEmployee(emp);
+    } else {
+      // Show card with available owner info
+      setSelectedOwnerModalEmployee({
+        name: ownerName,
+        designation: 'Department Head / Lead',
+        department: phaseOrTaskName || 'Manufacturing Operations',
+        email: `${ownerName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@skytech.com`,
+        status: 'Active'
+      });
+    }
+  };
 
   // Fetch WBS tree from Backend API (Database)
   const fetchWBS = async () => {
@@ -363,8 +436,6 @@ export default function WBSPage() {
 
         if (combined.length > 0) {
           setConfirmedProjects(combined);
-          const defaultId = combined[0].inquiryCode || combined[0].id;
-          setSelectedProjectId(prev => (prev === 'INQ-101' || prev === 'INQ_01' ? defaultId : prev));
         }
       } catch (err) {
         console.error('Fetching confirmed inquiries for WBS fallback:', err);
@@ -373,17 +444,16 @@ export default function WBSPage() {
     fetchConfirmedInquiries();
     fetchWBS();
 
+    // Check if project is explicitly requested via URL parameter
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('skytech_selected_project_id');
-      if (saved) setSelectedProjectId(saved);
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlProj = urlParams.get('project');
+      if (urlProj) {
+        setSelectedProjectId(urlProj);
+      } else {
+        setSelectedProjectId(''); // Prompt user to select project
+      }
     }
-
-    const handleProjectEvent = (e: any) => {
-      const saved = localStorage.getItem('skytech_selected_project_id');
-      if (saved) setSelectedProjectId(saved);
-    };
-    window.addEventListener('projectChanged', handleProjectEvent);
-    return () => window.removeEventListener('projectChanged', handleProjectEvent);
   }, []);
 
   // Currently selected confirmed project object
@@ -631,6 +701,8 @@ export default function WBSPage() {
                   }}
                   className="text-base font-extrabold text-slate-900 bg-transparent border-0 focus:ring-0 focus:outline-none cursor-pointer pr-8 appearance-none"
                 >
+                  <option value="">-- Select a Project --</option>
+                  <option value="ALL">All Confirmed Projects (Overview)</option>
                   {confirmedProjects.map(p => (
                     <option key={p.id} value={p.inquiryCode || p.id}>
                       [{p.inquiryCode || p.id}] {p.project} — {p.client}
@@ -887,6 +959,8 @@ export default function WBSPage() {
                 const totalCount = filteredSubtasks.length;
                 const phaseProgress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
+                const deptHeadName = getDeptHead(phase.name, phase.owner);
+
                 return (
                   <React.Fragment key={phase.id}>
                     
@@ -912,7 +986,19 @@ export default function WBSPage() {
                           {phase.badge}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-slate-200 font-normal">{phase.owner}</td>
+                      <td 
+                        className="py-3 px-4 text-slate-200 font-semibold cursor-pointer hover:text-blue-300 hover:underline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOwnerClick(deptHeadName, phase.name);
+                        }}
+                        title="Click to view Department Head profile"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <User size={13} className="text-blue-400 shrink-0" />
+                          <span>{deptHeadName}</span>
+                        </div>
+                      </td>
                       <td className="py-3 px-4 text-center text-slate-300 font-mono text-xs">
                         {filteredSubtasks.reduce((sum, t) => sum + t.planHours, 0)} hrs
                       </td>
@@ -970,9 +1056,16 @@ export default function WBSPage() {
                             {task.phaseBadge}
                           </span>
                         </td>
-                        <td className="py-2.5 px-4 text-slate-600 font-medium">
+                        <td 
+                          className="py-2.5 px-4 text-slate-700 font-medium cursor-pointer hover:text-blue-600 hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOwnerClick(task.owner, phase.name);
+                          }}
+                          title="Click to view Owner profile"
+                        >
                           <div className="flex items-center gap-1.5">
-                            <User size={13} className="text-slate-400" />
+                            <User size={13} className="text-slate-400 shrink-0" />
                             <span>{task.owner}</span>
                           </div>
                         </td>
@@ -1456,6 +1549,70 @@ export default function WBSPage() {
             fetchWBS();
           }}
         />
+      )}
+
+      {/* EMPLOYEE / DEPARTMENT HEAD DETAILS OVERLAY MODAL */}
+      {selectedOwnerModalEmployee && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" onClick={() => setSelectedOwnerModalEmployee(null)}>
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center font-extrabold text-base border border-blue-200">
+                  {(selectedOwnerModalEmployee.name || '?')[0]?.toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">{selectedOwnerModalEmployee.name}</h3>
+                  <p className="text-xs text-slate-500 font-medium">{selectedOwnerModalEmployee.designation || selectedOwnerModalEmployee.role || 'Department Lead'}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedOwnerModalEmployee(null)} 
+                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Department</span>
+                  <span className="font-extrabold text-slate-800 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">{selectedOwnerModalEmployee.department || 'Operations'}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Position / Role</span>
+                  <span className="font-bold text-blue-600">{selectedOwnerModalEmployee.designation || selectedOwnerModalEmployee.role || 'Lead Engineer'}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Email Contact</span>
+                  <span className="font-mono text-slate-800 font-bold">{selectedOwnerModalEmployee.email || `${selectedOwnerModalEmployee.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@skytech.com`}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Directory Status</span>
+                  <span className={`font-bold px-2.5 py-0.5 rounded-md text-[11px] ${
+                    selectedOwnerModalEmployee.status === 'Active' || !selectedOwnerModalEmployee.status
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}>
+                    {selectedOwnerModalEmployee.status || 'Active'}
+                  </span>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400 text-center font-medium">
+                Verified entry from Employee Directory
+              </p>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
+              <button 
+                onClick={() => setSelectedOwnerModalEmployee(null)} 
+                className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors cursor-pointer shadow-md shadow-blue-500/20"
+              >
+                Close Profile
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

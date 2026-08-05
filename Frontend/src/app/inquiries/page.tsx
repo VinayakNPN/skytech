@@ -253,9 +253,10 @@ export default function InquiriesPage() {
       setFormError('Contact Email is required and must follow standard format (e.g. client@company.com).');
       return;
     }
-    const phoneRegex = /^\+?[0-9\s-]{8,15}$/;
-    if (!phoneVal || !phoneRegex.test(phoneVal)) {
-      setFormError('Contact Phone is required and must follow standard format (e.g. +91 98000 00000).');
+    const cleanPhone = phoneVal.replace(/[\s\-\(\)]/g, '');
+    const indianPhoneRegex = /^(?:\+91)?([6-9]\d{9})$/;
+    if (!phoneVal || !indianPhoneRegex.test(cleanPhone)) {
+      setFormError('Contact Phone is required and must be a valid 10-digit Indian mobile number (e.g. 9876543210 or +91 9876543210).');
       return;
     }
 
@@ -298,6 +299,15 @@ export default function InquiriesPage() {
   const handleSaveEditInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formInquiry.id) return;
+
+    const phoneVal = (formInquiry.phone || '').trim();
+    const cleanPhone = phoneVal.replace(/[\s\-\(\)]/g, '');
+    const indianPhoneRegex = /^(?:\+91)?([6-9]\d{9})$/;
+    if (!phoneVal || !indianPhoneRegex.test(cleanPhone)) {
+      setFormError('Contact Phone is required and must be a valid 10-digit Indian mobile number (e.g. 9876543210 or +91 9876543210).');
+      return;
+    }
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/inquiries/${formInquiry.id}`, {
         method: 'PUT',
@@ -310,9 +320,13 @@ export default function InquiriesPage() {
       if (res.ok) {
         await fetchInquiries();
         setIsEditModalOpen(false);
+      } else {
+        const data = await res.json();
+        setFormError(data.error || 'Failed to update inquiry.');
       }
     } catch (err) {
       console.error('Failed to update inquiry:', err);
+      setFormError('Network error while saving inquiry updates.');
     }
   };
 
@@ -498,10 +512,10 @@ export default function InquiriesPage() {
         </div>
       </div>
 
-      {/* Summary KPI Cards (Connected to Backend API) */}
+      {/* Interactive Summary KPI Cards (Merged Conversion Funnel Stats) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
-        {/* Card 1 */}
+        {/* Card 1: INQUIRIES RECEIVED */}
         <div 
           onClick={() => {
             const latest = [...inquiries].sort((a, b) =>
@@ -511,136 +525,99 @@ export default function InquiriesPage() {
               highlightInquiry(latest.id);
             }
           }}
-          className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-blue-300 hover:shadow-md transition-all">
+          className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group">
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">INQUIRIES RECEIVED</span>
-            <div className="flex items-baseline gap-2 mt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">1. INQUIRIES RECEIVED</span>
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Layers size={18} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
               <span className="text-2xl font-extrabold text-slate-900">{totalCount}</span>
-              <span className="text-xs font-semibold text-blue-600 flex items-center gap-0.5">
-                <TrendingUp size={12} /> Live Count
+              <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                100% Total Leads
               </span>
             </div>
-            <span className="text-[11px] text-slate-400 mt-1 block">Total client lead requests</span>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">Total client lead requests received</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-            <Layers size={20} />
+          <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
+            <div className="bg-blue-600 h-full rounded-full w-full" />
           </div>
         </div>
 
-        {/* Card 2 */}
+        {/* Card 2: OFFERS SENT */}
         <div 
           onClick={() => { setStatusFilter('Offer Sent'); setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }}
-          className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all">
+          className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all group">
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">OFFERS SENT</span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-2xl font-extrabold text-slate-900">{offersSentCount}</span>
-              <span className="text-xs font-semibold text-indigo-600">Quotations Out</span>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-extrabold text-indigo-700 uppercase tracking-wider">2. OFFERS SENT</span>
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Send size={18} />
+              </div>
             </div>
-            <span className="text-[11px] text-slate-400 mt-1 block">Delivered proposals</span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <Send size={20} />
-          </div>
-        </div>
-
-        {/* Card 3 */}
-        <div 
-          onClick={() => { setStatusFilter('Confirmed'); setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }}
-          className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all">
-          <div>
-            <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">ORDERS CONFIRMED</span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-2xl font-extrabold text-emerald-950">{confirmedCount}</span>
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">
-                {winRatePercentage}% Win Rate
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-2xl font-extrabold text-slate-900">{offersSentCount}</span>
+              <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                {totalCount > 0 ? Math.round((offersSentCount / totalCount) * 100) : 0}% Costed & Sent
               </span>
             </div>
-            <span className="text-[11px] text-emerald-600 font-medium mt-1 block">Pushed into manufacturing</span>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">Quotation proposals sent to clients</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-            <CheckCircle size={20} />
+          <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
+            <div className="bg-indigo-600 h-full rounded-full" style={{ width: `${totalCount > 0 ? (offersSentCount / totalCount) * 100 : 0}%` }} />
           </div>
         </div>
 
-        {/* Card 4 */}
+        {/* Card 3: CONFIRMED ORDERS */}
+        <div 
+          onClick={() => { setStatusFilter('Confirmed'); setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }}
+          className="bg-emerald-50/40 p-5 rounded-2xl border border-emerald-200/90 shadow-xs flex flex-col justify-between cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider">3. CONFIRMED ORDERS</span>
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                <CheckCircle size={18} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-2xl font-extrabold text-emerald-950">{confirmedCount}</span>
+              <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-200">
+                {winRatePercentage}% Conversion Rate
+              </span>
+            </div>
+            <p className="text-[11px] text-emerald-700 font-medium mt-1">Confirmed orders in manufacturing</p>
+          </div>
+          <div className="w-full bg-emerald-200/60 rounded-full h-1.5 mt-3 overflow-hidden">
+            <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${totalCount > 0 ? (confirmedCount / totalCount) * 100 : 0}%` }} />
+          </div>
+        </div>
+
+        {/* Card 4: UNCONFIRMED / PENDING */}
         <div 
           onClick={() => { setStatusFilter('Unconfirmed'); setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }}
-          className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-amber-300 hover:shadow-md transition-all">
+          className="bg-amber-50/40 p-5 rounded-2xl border border-amber-200/90 shadow-xs flex flex-col justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all group">
           <div>
-            <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">UNCONFIRMED / PENDING</span>
-            <div className="flex items-baseline gap-2 mt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider">4. UNCONFIRMED / PENDING</span>
+              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                <Clock size={18} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
               <span className="text-2xl font-extrabold text-amber-950">{unconfirmedCount}</span>
-              <span className="text-xs font-semibold text-amber-700">Awaiting PO</span>
+              <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
+                {totalCount > 0 ? Math.round((unconfirmedCount / totalCount) * 100) : 0}% Awaiting Confirmation
+              </span>
             </div>
-            <span className="text-[11px] text-amber-700 font-medium mt-1 block">Pending client decision</span>
+            <p className="text-[11px] text-amber-700 font-medium mt-1">Pending client confirmation / PO</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
-            <Clock size={20} />
+          <div className="w-full bg-amber-200/60 rounded-full h-1.5 mt-3 overflow-hidden">
+            <div className="bg-amber-500 h-full rounded-full" style={{ width: `${totalCount > 0 ? (unconfirmedCount / totalCount) * 100 : 0}%` }} />
           </div>
         </div>
 
-      </div>
-
-      {/* Conversion Funnel Analytics Card */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">Inquiry Conversion Funnel Analysis</h2>
-            <p className="text-xs text-slate-500">Stage-by-stage drop-off from Inquiry → Offer → Confirmed Order</p>
-          </div>
-          <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-xl border border-blue-100">
-            Real-Time Conversion Stats
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-1">
-          {/* Step 1 */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">1. INQUIRIES RECEIVED</span>
-            <span className="text-xl font-extrabold text-slate-900 block mt-1">{totalCount} Inquiries</span>
-            <div className="w-full bg-slate-200 rounded-full h-2 mt-3 overflow-hidden">
-              <div className="bg-blue-600 h-full rounded-full w-full" />
-            </div>
-            <span className="text-[10px] text-slate-500 font-semibold mt-1 block">100% Total Leads</span>
-          </div>
-
-          {/* Step 2 */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">2. OFFERS SENT</span>
-            <span className="text-xl font-extrabold text-slate-900 block mt-1">{offersSentCount} Offers</span>
-            <div className="w-full bg-slate-200 rounded-full h-2 mt-3 overflow-hidden">
-              <div className="bg-indigo-600 h-full rounded-full" style={{ width: `${totalCount > 0 ? (offersSentCount / totalCount) * 100 : 0}%` }} />
-            </div>
-            <span className="text-[10px] text-indigo-600 font-semibold mt-1 block">
-              {totalCount > 0 ? Math.round((offersSentCount / totalCount) * 100) : 0}% Costed & Sent
-            </span>
-          </div>
-
-          {/* Step 3 */}
-          <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-200/80">
-            <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">3. CONFIRMED ORDERS</span>
-            <span className="text-xl font-extrabold text-emerald-950 block mt-1">{confirmedCount} Confirmed</span>
-            <div className="w-full bg-emerald-200/80 rounded-full h-2 mt-3 overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${totalCount > 0 ? (confirmedCount / totalCount) * 100 : 0}%` }} />
-            </div>
-            <span className="text-[10px] text-emerald-700 font-extrabold mt-1 block">
-              {totalCount > 0 ? Math.round((confirmedCount / totalCount) * 100) : 0}% Conversion Rate
-            </span>
-          </div>
-
-          {/* Step 4 */}
-          <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200/80">
-            <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">4. UNCONFIRMED / PENDING</span>
-            <span className="text-xl font-extrabold text-amber-950 block mt-1">{unconfirmedCount} Pending</span>
-            <div className="w-full bg-amber-200/80 rounded-full h-2 mt-3 overflow-hidden">
-              <div className="bg-amber-500 h-full rounded-full" style={{ width: `${totalCount > 0 ? (unconfirmedCount / totalCount) * 100 : 0}%` }} />
-            </div>
-            <span className="text-[10px] text-amber-700 font-semibold mt-1 block">
-              {totalCount > 0 ? Math.round((unconfirmedCount / totalCount) * 100) : 0}% Awaiting Confirmation
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* Main Inquiries Records Table */}
@@ -961,7 +938,6 @@ export default function InquiriesPage() {
                   >
                     <option value="Inquiry Received">Inquiry Received (Default)</option>
                     <option value="Offer Sent">Offer Sent</option>
-                    <option value="Confirmed">Confirmed (Order Won)</option>
                     <option value="Unconfirmed">Unconfirmed / Pending</option>
                   </select>
                 </div>
@@ -1106,12 +1082,8 @@ export default function InquiriesPage() {
                   >
                     <option value="Inquiry Received">Inquiry Received</option>
                     <option value="Offer Sent">Offer Sent</option>
-                    {formInquiry.status === 'Confirmed' && (
-                      <option value="Confirmed">Confirmed (Order Won) — Terminal State</option>
-                    )}
-                    {formInquiry.status !== 'Confirmed' && (
-                      <option value="Unconfirmed">Unconfirmed / Pending</option>
-                    )}
+                    <option value="Confirmed">Confirmed (Order Won)</option>
+                    <option value="Unconfirmed">Unconfirmed / Pending</option>
                   </select>
                   {formInquiry.status === 'Confirmed' && (
                     <p className="text-[10px] text-slate-400 font-medium mt-1">Confirmed orders cannot be reverted. Use the On Hold button to pause the project.</p>

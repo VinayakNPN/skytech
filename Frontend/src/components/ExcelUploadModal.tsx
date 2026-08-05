@@ -95,6 +95,8 @@ export function ExcelUploadModal({
     }
   };
 
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
@@ -112,7 +114,7 @@ export function ExcelUploadModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-200 text-slate-600 transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -121,49 +123,59 @@ export function ExcelUploadModal({
         {/* Content */}
         <div className="p-6 space-y-4">
           
-          {/* Dropzone */}
+          {/* Dropzone — Entire Box Clickable */}
           {!result && (
             <div
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all ${
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer ${
                 dragActive
-                  ? "border-emerald-500 bg-emerald-50/50"
+                  ? "border-emerald-500 bg-emerald-50/50 scale-[0.99]"
                   : file
-                  ? "border-emerald-300 bg-emerald-50/20"
-                  : "border-slate-300 hover:border-slate-400 bg-slate-50/50"
+                  ? "border-emerald-400 bg-emerald-50/30"
+                  : "border-slate-300 hover:border-emerald-400 hover:bg-slate-50/80"
               }`}
             >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx, .xls"
+                onChange={handleFileChange}
+                className="hidden"
+              />
               {file ? (
                 <div className="flex flex-col items-center gap-2">
-                  <FileSpreadsheet size={36} className="text-emerald-600" />
-                  <span className="text-sm font-bold text-slate-800">{file.name}</span>
-                  <span className="text-xs text-slate-400">{(file.size / 1024).toFixed(1)} KB</span>
+                  <FileSpreadsheet size={42} className="text-emerald-600 animate-bounce-short" />
+                  <span className="text-sm font-extrabold text-slate-900">{file.name}</span>
+                  <span className="text-xs text-slate-400 font-mono">{(file.size / 1024).toFixed(1)} KB</span>
                   <button
-                    onClick={() => setFile(null)}
-                    className="text-xs font-semibold text-rose-600 hover:underline mt-1"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFile(null);
+                    }}
+                    className="text-xs font-semibold text-rose-600 hover:underline mt-2 cursor-pointer"
                   >
-                    Change file
+                    Change / Remove file
                   </button>
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-2">
-                  <UploadCloud size={40} className="text-slate-400" />
-                  <div className="text-xs font-semibold text-slate-700">
-                    Drag and drop your Excel file here, or{" "}
-                    <label className="text-blue-600 hover:underline cursor-pointer">
-                      browse
-                      <input
-                        type="file"
-                        accept=".xlsx, .xls"
-                        onChange={handleFileChange}
-                        className="hidden"
-                      />
-                    </label>
+                <div className="flex flex-col items-center gap-2.5 py-2">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shadow-xs">
+                    <UploadCloud size={30} />
                   </div>
-                  <span className="text-[10px] text-slate-400">
+                  <div>
+                    <span className="text-sm font-bold text-slate-800 block">
+                      Click anywhere here to select & upload Excel file
+                    </span>
+                    <span className="text-xs text-slate-400 mt-1 block">
+                      or drag & drop your .xlsx / .xls file into this box
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100/80 mt-1">
                     Supports Job Master, Item Master, Stock IN, Stock OUT sheets
                   </span>
                 </div>

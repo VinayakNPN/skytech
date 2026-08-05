@@ -423,6 +423,12 @@ export default function Dashboard() {
   const [confirmedProjects, setConfirmedProjects] = useState<any[]>(DEFAULT_CONFIRMED_PROJECTS);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('JOB-01');
 
+  const [teamOverlayOpen, setTeamOverlayOpen] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [highlightedPhaseId, setHighlightedPhaseId] = useState<string | null>(null);
+  const pipelineRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const fetchProjects = async () => {
       try {
@@ -537,6 +543,38 @@ export default function Dashboard() {
   // Update remark for phase
   const handleRemarkChange = (phaseId: string, remark: string) => {
     setPhases(prev => prev.map(phase => phase.id === phaseId ? { ...phase, remark } : phase));
+  };
+
+  // Open Assigned Team overlay — fetches real backend data only
+  const handleAssignedTeamClick = async () => {
+    setTeamOverlayOpen(true);
+    setTeamLoading(true);
+    setTeamMembers([]);
+    try {
+      // Find the UUID of the currently selected project
+      const proj = confirmedProjects.find(p => p.id === selectedProjectId || p.inquiryCode === selectedProjectId);
+      const projectUUID = proj?.id || selectedProjectId;
+      const res = await fetch(`${API_BASE_URL}/api/inquiries/${projectUUID}/team`);
+      if (res.ok) {
+        const data = await res.json();
+        setTeamMembers(Array.isArray(data) ? data : []);
+      } else {
+        setTeamMembers([]);
+      }
+    } catch {
+      setTeamMembers([]);
+    } finally {
+      setTeamLoading(false);
+    }
+  };
+
+  // Highlight the active department's phase circle and scroll to it
+  const handleActiveDeptClick = () => {
+    const activeId = phases.find(p => p.tasks.some(t => !t.completed))?.id || phases[0].id;
+    setHighlightedPhaseId(activeId);
+    setSelectedPhaseId(activeId);
+    pipelineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => setHighlightedPhaseId(null), 2500);
   };
 
   // Selected phase data object
@@ -814,11 +852,82 @@ export default function Dashboard() {
       </div>
 
 
-      {/* Top 6 KPI Stat Cards Grid — project-scoped */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+      {/* Project List Bar */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Confirmed Projects</span>
+          <span className="text-[10px] font-semibold text-slate-400">{confirmedProjects.length} active</span>
+        </div>
+        {confirmedProjects.length === 0 ? (
+          <div className="text-xs text-slate-400 font-medium py-2 text-center">No confirmed projects. Connect backend to load projects.</div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {confirmedProjects.map((proj) => {
+              const projId = proj.inquiryCode || proj.id;
+              const projPhases = buildPhasesForProject(projId);
+              const totalTasks = projPhases.reduce((s, p) => s + p.tasks.length, 0);
+              const doneTasks = projPhases.reduce((s, p) => s + p.tasks.filter(t => t.completed).length, 0);
+              const activePhase = projPhases.find(p => p.tasks.some(t => !t.completed));
+              const isSelected = projId === selectedProjectId || proj.id === selectedProjectId;
+              const hasError = projPhases.some((p, i) => i > 0 && p.tasks.some(t => !t.completed) && !projPhases[i - 1].tasks.every(t => t.completed));
+              return (
+                <div
+                  key={proj.id}
+                  onClick={() => {
+                    setSelectedProjectId(projId);
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('skytech_selected_project_id', projId);
+                      window.dispatchEvent(new Event('projectChanged'));
+                    }
+                  }}
+                  className={`flex items-center justify-between py-2.5 px-2 rounded-xl cursor-pointer transition-all ${
+                    isSelected ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      isSelected ? 'bg-blue-500' : 'bg-slate-300'
+                    }`} />
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold text-slate-800 block truncate">
+                        [{projId}] {proj.project}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">{proj.client}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+                    <div className="text-right">
+                      <span className="text-[10px] font-extrabold text-slate-700 font-mono">{doneTasks}/{totalTasks}</span>
+                      <span className="text-[9px] text-slate-400 block">tasks</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-semibold text-blue-600 block truncate max-w-[90px]">{activePhase?.shortName || 'Complete'}</span>
+                      <span className="text-[9px] text-slate-400">active dept</span>
+                    </div>
+                    {hasError && (
+                      <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">⚠ Check</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-        {/* Card 1: OVERALL PROGRESS */}
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between h-[155px]">
+      {/* KPI Stats — 5 Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+      
+        {/* Card 1: OVERALL PROGRESS — clickable → /wbs */}
+        <div
+          className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md hover:border-blue-300 transition-all duration-200 flex flex-col justify-between h-[155px] cursor-pointer group"
+          onClick={() => {
+            const proj = confirmedProjects.find(p => p.id === selectedProjectId || p.inquiryCode === selectedProjectId);
+            const code = proj?.inquiryCode || proj?.id || selectedProjectId;
+            window.location.href = `/wbs?project=${code}`;
+          }}
+          title="Click to open WBS for this project"
+        >
           <div>
             <div className="flex items-start justify-between">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">OVERALL PROGRESS</span>
@@ -827,63 +936,65 @@ export default function Dashboard() {
             <div className="mt-[-8px]">
               <span className="text-2xl font-extrabold text-slate-900 tracking-tight">{stats.overallProgress}%</span>
               <div className="flex items-center gap-1 text-[11px] font-semibold mt-1 text-slate-500">
-                <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded-md">{stats.tasksCompleted}/{stats.totalTasks} tasks</span>
+                <span className="font-mono text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded-md font-extrabold">{stats.tasksCompleted}/{stats.totalTasks} tasks</span>
               </div>
             </div>
           </div>
-          <MiniWaveChart />
+          <div className="flex items-center gap-1 text-[10px] text-blue-500 font-semibold group-hover:text-blue-700 transition-colors">
+            <ArrowRight size={11} /><span>Open WBS</span>
+          </div>
         </div>
-
-        {/* Card 2: CURRENT PHASE */}
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between h-[155px] relative overflow-hidden">
+      
+        {/* Card 2: ACTIVE DEPT — clickable → highlight phase circle */}
+        <div
+          className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md hover:border-indigo-300 transition-all duration-200 flex flex-col justify-between h-[155px] relative overflow-hidden cursor-pointer group"
+          onClick={handleActiveDeptClick}
+          title="Click to highlight this department in the pipeline"
+        >
           <div>
             <div className="flex items-start justify-between">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ACTIVE DEPT.</span>
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-100 transition-colors">
                 <Wrench size={18} />
               </div>
             </div>
             <div className="mt-[-2px]">
               <span className="text-base font-extrabold text-slate-900 tracking-tight uppercase leading-tight block">{stats.currentPhase}</span>
-              <p className="text-[11px] font-medium text-slate-400 mt-1">{stats.deptsInProgress} dept{stats.deptsInProgress !== 1 ? 's' : ''} in progress · {stats.deptsDone} done</p>
+              <p className="text-[11px] font-medium text-slate-400 mt-1">{stats.deptsInProgress} in progress · {stats.deptsDone} done</p>
             </div>
+          </div>
+          <div className="flex items-center gap-1 text-[10px] text-indigo-500 font-semibold group-hover:text-indigo-700 transition-colors">
+            <ArrowRight size={11} /><span>Highlight in pipeline</span>
           </div>
           <div className="absolute -right-3 -bottom-3 text-slate-100/90 pointer-events-none z-0">
             <Settings size={76} strokeWidth={1.2} />
           </div>
         </div>
-
-        {/* Card 3: TASKS COMPLETED */}
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between h-[155px]">
-          <div>
-            <div className="flex items-start justify-between">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">TASKS COMPLETED</span>
-              <CircularProgress percentage={stats.completedPercentage} strokeColor="stroke-emerald-500" />
-            </div>
-            <div className="mt-[-8px]">
-              <span className="text-2xl font-extrabold text-slate-900 tracking-tight">{stats.tasksCompleted} / {stats.totalTasks}</span>
-              <p className="text-[11px] font-medium text-slate-400 mt-1">{stats.activeTasks} tasks remaining</p>
-            </div>
-          </div>
-          <MiniBarChart barColor="bg-emerald-400" />
-        </div>
-
-        {/* Card 4: ASSIGNED TEAM */}
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between h-[155px]">
+      
+        {/* Card 3: ASSIGNED TEAM — clickable → real backend overlay */}
+        <div
+          className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all duration-200 flex flex-col justify-between h-[155px] cursor-pointer group"
+          onClick={handleAssignedTeamClick}
+          title="Click to view assigned team members"
+        >
           <div>
             <div className="flex items-start justify-between">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ASSIGNED TEAM</span>
-              <CircularProgress percentage={stats.attendancePct} strokeColor="stroke-indigo-500" />
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-100 transition-colors">
+                <Briefcase size={18} />
+              </div>
             </div>
-            <div className="mt-[-8px]">
-              <span className="text-2xl font-extrabold text-slate-900 tracking-tight">{stats.presentStaff} / {stats.assignedStaff}</span>
-              <p className="text-[11px] font-semibold text-indigo-600 mt-1">{stats.attendancePct}% present today</p>
+            <div className="mt-[-2px]">
+              <span className="text-2xl font-extrabold text-slate-900 tracking-tight">{stats.assignedStaff}</span>
+              <p className="text-[11px] font-semibold text-emerald-600 mt-1">Members on project</p>
             </div>
           </div>
-          <MiniBarChart barColor="bg-indigo-400" />
+          <div className="flex items-center gap-1 text-[10px] text-emerald-500 font-semibold group-hover:text-emerald-700 transition-colors">
+            <ArrowRight size={11} /><span>View team</span>
+          </div>
         </div>
-
-        {/* Card 5: OPEN TASKS */}
+      
+        {/* Card 4: OPEN TASKS */}
         <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between h-[155px]">
           <div>
             <div className="flex items-start justify-between">
@@ -901,28 +1012,32 @@ export default function Dashboard() {
           </div>
           <MiniBarChart barColor="bg-amber-400" />
         </div>
-
-        {/* Card 6: DEPTS DONE */}
+      
+        {/* Card 5: REMARK BOX — replaces DEPTS DONE */}
         <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between h-[155px]">
-          <div>
-            <div className="flex items-start justify-between">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">DEPTS DONE</span>
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
-                <CheckCircle size={18} />
-              </div>
-            </div>
-            <div className="mt-[-2px]">
-              <span className="text-2xl font-extrabold text-slate-900 tracking-tight">{stats.deptsDone} / {phases.length}</span>
-              <p className="text-[11px] font-medium text-slate-400 mt-1">{stats.deptsNotStarted} not yet started</p>
-            </div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <MessageSquare size={11} className="text-blue-500" />
+              REMARK
+            </span>
+            <span className="text-[9px] font-semibold text-slate-300">{activePhaseData?.shortName}</span>
           </div>
-          <MiniBarChart barColor="bg-emerald-400" />
+          <textarea
+            value={activePhaseData?.remark || ''}
+            onChange={(e) => activePhaseData && handleRemarkChange(activePhaseData.id, e.target.value)}
+            placeholder="Dept remark..."
+            rows={3}
+            className="w-full flex-1 p-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-medium text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
+          />
+          <div className="text-[9px] text-slate-300 font-medium mt-1 flex items-center gap-1">
+            <Sparkles size={10} className="text-blue-300" />Auto-saved
+          </div>
         </div>
-
+      
       </div>
 
       {/* NEW SECTION: Production Flow Overview & Tasks Completed by Phase (From Image 1 & Image 2) */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-6">
+      <div ref={pipelineRef} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-6">
         
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-100">
@@ -1002,7 +1117,7 @@ export default function Dashboard() {
                   <div
                     className={`flex flex-col items-center text-center group ${
                       isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
-                    }`}
+                    } ${highlightedPhaseId === phase.id ? 'scale-110 transition-transform duration-300' : ''}`}
                     onClick={() => !isLocked && setSelectedPhaseId(phase.id)}
                     title={isLocked ? 'Complete the previous department first' : phase.name}
                   >
@@ -1021,6 +1136,7 @@ export default function Dashboard() {
                           <circle
                             cx="32" cy="32" r="28"
                             className={
+                              highlightedPhaseId === phase.id ? 'stroke-blue-600' :
                               isLocked   ? 'stroke-slate-300' :
                               isDone     ? 'stroke-emerald-500' :
                               isSelected ? 'stroke-blue-600' :
@@ -1096,147 +1212,38 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Selected Phase Interactive Task Checklist & Remark Box (From Image 1) */}
-        <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-5 space-y-4 animate-in fade-in duration-200">
-          
-          {/* Phase Detail Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/60">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl ${activePhaseData.bgColor} ${activePhaseData.color} flex items-center justify-center shadow-xs`}>
-                <activePhaseData.icon size={20} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-slate-900">{activePhaseData.name}</h3>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                    activePhaseData.tasks.every(t => t.completed)
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-blue-50 text-blue-700 border-blue-200'
-                  }`}>
-                    {activePhaseData.tasks.every(t => t.completed) ? 'Phase Completed' : 'In Progress'}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Checklist breakdown and department remark notes
-                </p>
-              </div>
+        {/* Selected Phase Context — minimal */}
+        <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-4 flex items-center gap-4">
+          <div className={`w-10 h-10 rounded-xl ${activePhaseData.bgColor} ${activePhaseData.color} flex items-center justify-center shadow-xs flex-shrink-0`}>
+            <activePhaseData.icon size={20} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900">{activePhaseData.name}</h3>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                activePhaseData.tasks.every(t => t.completed)
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-blue-50 text-blue-700 border-blue-200'
+              }`}>
+                {activePhaseData.tasks.every(t => t.completed) ? 'Phase Complete' : 'In Progress'}
+              </span>
             </div>
-
-            {/* Task Completion Progress Bar for Selected Phase */}
-            <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-xs">
-              <div className="text-right">
-                <span className="text-xs font-extrabold text-slate-800">
-                  {activePhaseData.tasks.filter(t => t.completed).length} of {activePhaseData.tasks.length} Tasks
-                </span>
-                <span className="text-[10px] block text-slate-400 font-semibold">
-                  {Math.round((activePhaseData.tasks.filter(t => t.completed).length / activePhaseData.tasks.length) * 100)}% Complete
-                </span>
-              </div>
-              <div className="w-24 bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/50">
-                <div 
-                  className="bg-blue-600 h-full rounded-full transition-all duration-300"
-                  style={{ width: `${(activePhaseData.tasks.filter(t => t.completed).length / activePhaseData.tasks.length) * 100}%` }}
-                />
-              </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {activePhaseData.tasks.filter(t => t.completed).length} of {activePhaseData.tasks.length} tasks done · Click a department circle above to switch
+            </p>
+          </div>
+          <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs flex-shrink-0">
+            <div className="text-right">
+              <span className="text-xs font-extrabold text-slate-800">{Math.round((activePhaseData.tasks.filter(t => t.completed).length / activePhaseData.tasks.length) * 100)}%</span>
+              <span className="text-[10px] block text-slate-400 font-semibold">complete</span>
+            </div>
+            <div className="w-16 bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/50">
+              <div
+                className="bg-blue-600 h-full rounded-full transition-all duration-300"
+                style={{ width: `${(activePhaseData.tasks.filter(t => t.completed).length / activePhaseData.tasks.length) * 100}%` }}
+              />
             </div>
           </div>
-
-          {/* Grid Layout: Tasks Checklist (Left) & Remark Box (Right) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            
-            {/* Task Checklist (Spans 2 columns) */}
-            <div className="md:col-span-2 space-y-2">
-              {(() => {
-                const activePhaseOrigIdx = phases.findIndex(p => p.id === activePhaseData.id);
-                const phaseIsLocked = phases
-                  .slice(0, activePhaseOrigIdx)
-                  .some(p => !p.tasks.every(t => t.completed));
-
-                return (
-                  <>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                        Phase Task Checklist ({activePhaseData.tasks.filter(t => t.completed).length}/{activePhaseData.tasks.length})
-                      </span>
-                      {phaseIsLocked && (
-                        <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                          Complete previous department first
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {activePhaseData.tasks.map((task) => (
-                        <div
-                          key={task.id}
-                          onClick={() => !phaseIsLocked && handleToggleTask(activePhaseData.id, task.id)}
-                          className={`flex items-center justify-between p-3 rounded-xl border transition-all select-none ${
-                            phaseIsLocked
-                              ? 'bg-slate-50 border-slate-100 opacity-50 cursor-not-allowed'
-                              : task.completed
-                                ? 'bg-white border-slate-200/80 shadow-xs hover:border-blue-300 cursor-pointer'
-                                : 'bg-white/60 border-slate-200 text-slate-600 hover:bg-white hover:border-slate-300 cursor-pointer'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className={`text-xs font-extrabold px-2 py-0.5 rounded-md ${
-                              phaseIsLocked ? 'bg-slate-100 text-slate-400' :
-                              task.completed ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'
-                            }`}>
-                              {task.id}
-                            </span>
-                            <span className={`text-xs font-semibold truncate ${
-                              phaseIsLocked ? 'text-slate-400' :
-                              task.completed ? 'text-slate-800 line-through decoration-slate-300' : 'text-slate-700'
-                            }`}>
-                              {task.name}
-                            </span>
-                          </div>
-
-                          {phaseIsLocked ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 flex-shrink-0 ml-2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                          ) : task.completed ? (
-                            <CheckSquare size={17} className="text-blue-600 flex-shrink-0 ml-2" />
-                          ) : (
-                            <Square size={17} className="text-slate-300 hover:text-slate-400 flex-shrink-0 ml-2" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-
-            {/* Remark Box (Right column - exact requirement from Image 1) */}
-            <div className="space-y-2 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <MessageSquare size={14} className="text-blue-600" />
-                    <span>Remark Box</span>
-                  </span>
-                  <span className="text-[10px] font-semibold text-slate-400">Department Notes</span>
-                </div>
-
-                <textarea
-                  value={activePhaseData.remark || ''}
-                  onChange={(e) => handleRemarkChange(activePhaseData.id, e.target.value)}
-                  placeholder="Type department remarks or notes for this phase..."
-                  rows={4}
-                  className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-xs resize-none"
-                />
-              </div>
-
-              <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3 flex items-center justify-between text-xs text-blue-800 font-medium">
-                <span className="truncate">Remarks saved automatically</span>
-                <Sparkles size={14} className="text-blue-500 flex-shrink-0" />
-              </div>
-            </div>
-
-          </div>
-
         </div>
 
       </div>
@@ -1281,6 +1288,65 @@ export default function Dashboard() {
           </a>
         </div>
       </div>
+
+      {/* Assigned Team Overlay */}
+      {teamOverlayOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+          onClick={() => setTeamOverlayOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Assigned Team</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {currentSelectedProject?.project || selectedProjectId}
+                </p>
+              </div>
+              <button
+                onClick={() => setTeamOverlayOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <XCircle size={18} />
+              </button>
+            </div>
+            <div className="p-6">
+              {teamLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <span className="ml-3 text-xs text-slate-500 font-medium">Loading team data...</span>
+                </div>
+              ) : teamMembers.length === 0 ? (
+                <div className="text-center py-8">
+                  <Briefcase size={32} className="text-slate-300 mx-auto mb-3" />
+                  <p className="text-sm font-semibold text-slate-500">No team data available</p>
+                  <p className="text-xs text-slate-400 mt-1">Connect backend to view assigned team members for this project.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {teamMembers.map((member: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                      <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-extrabold text-sm flex-shrink-0">
+                        {(member.employee?.name || member.name || '?')[0].toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-800 block">{member.employee?.name || member.name || '—'}</span>
+                        <span className="text-[10px] text-slate-400">{member.role || member.employee?.designation || member.employee?.role || 'Team Member'}</span>
+                      </div>
+                      <span className="ml-auto text-[9px] font-bold px-2 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded-md">
+                        {member.employee?.empCode || ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

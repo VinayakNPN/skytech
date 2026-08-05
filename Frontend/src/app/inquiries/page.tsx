@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { 
   Send, 
@@ -85,6 +85,14 @@ export default function InquiriesPage() {
 
   const [formError, setFormError] = useState<string>('');
 
+  const [highlightedInquiryId, setHighlightedInquiryId] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  // Offer details gated modal state
+  const [isOfferDetailsModalOpen, setIsOfferDetailsModalOpen] = useState(false);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ inquiry: Inquiry; newStatus: string } | null>(null);
+  const [offerDetails, setOfferDetails] = useState({ sentBy: '', refNo: '' });
+  const [offerDetailsError, setOfferDetailsError] = useState('');
+
   // Fetch inquiries from backend API
   const fetchInquiries = async () => {
     try {
@@ -109,6 +117,69 @@ export default function InquiriesPage() {
   useEffect(() => {
     fetchInquiries();
   }, []);
+
+  // Highlight an inquiry row for 3 seconds then clear
+  const highlightInquiry = (id: string) => {
+    setHighlightedInquiryId(id);
+    setStatusFilter('ALL');
+    setTimeout(() => {
+      listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+    setTimeout(() => setHighlightedInquiryId(null), 3000);
+  };
+
+  // Intercept status changes — gate Offer Sent with quotation details
+  const handleStatusChangeAttempt = (inquiry: Inquiry, newStatus: string) => {
+    if (inquiry.status === 'Inquiry Received' && newStatus === 'Offer Sent') {
+      setPendingStatusChange({ inquiry, newStatus });
+      setOfferDetails({ sentBy: '', refNo: '' });
+      setOfferDetailsError('');
+      setIsOfferDetailsModalOpen(true);
+      return; // Don't change yet
+    }
+    // All other changes — apply directly in the edit form
+    setFormInquiry({ ...formInquiry, status: newStatus as any });
+  };
+
+  const handleConfirmOfferDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!offerDetails.sentBy.trim()) {
+      setOfferDetailsError('Please enter the name of person who sent the quotation.');
+      return;
+    }
+    if (!offerDetails.refNo.trim()) {
+      setOfferDetailsError('Please enter a quotation reference number.');
+      return;
+    }
+    if (!pendingStatusChange) return;
+
+    // Build new remarks string prefixed with offer details
+    const remarkPrefix = `[Offer Sent] By: ${offerDetails.sentBy}, Ref: ${offerDetails.refNo}`;
+    const updatedRemarks = remarkPrefix + (pendingStatusChange.inquiry.remarks ? ' | ' + pendingStatusChange.inquiry.remarks : '');
+
+    // Apply the status change via backend
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/inquiries/${pendingStatusChange.inquiry.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({
+          ...pendingStatusChange.inquiry,
+          status: 'Offer Sent',
+          remarks: updatedRemarks,
+          amount: Number(pendingStatusChange.inquiry.amount) || 0
+        })
+      });
+      if (res.ok) {
+        await fetchInquiries();
+      }
+    } catch (err) {
+      console.error('Failed to update status:', err);
+    }
+
+    setIsOfferDetailsModalOpen(false);
+    setPendingStatusChange(null);
+    setIsEditModalOpen(false);
+  };
 
   // Open Hold Modal
   const openHoldModal = (inq: Inquiry) => {
@@ -431,7 +502,16 @@ export default function InquiriesPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Card 1 */}
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+        <div 
+          onClick={() => {
+            const latest = [...inquiries].sort((a, b) =>
+              new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()
+            )[0];
+            if (latest) {
+              highlightInquiry(latest.id);
+            }
+          }}
+          className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-blue-300 hover:shadow-md transition-all">
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">INQUIRIES RECEIVED</span>
             <div className="flex items-baseline gap-2 mt-1">
@@ -448,7 +528,9 @@ export default function InquiriesPage() {
         </div>
 
         {/* Card 2 */}
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+        <div 
+          onClick={() => { setStatusFilter('Offer Sent'); setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }}
+          className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all">
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">OFFERS SENT</span>
             <div className="flex items-baseline gap-2 mt-1">
@@ -463,7 +545,9 @@ export default function InquiriesPage() {
         </div>
 
         {/* Card 3 */}
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+        <div 
+          onClick={() => { setStatusFilter('Confirmed'); setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }}
+          className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all">
           <div>
             <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">ORDERS CONFIRMED</span>
             <div className="flex items-baseline gap-2 mt-1">
@@ -480,7 +564,9 @@ export default function InquiriesPage() {
         </div>
 
         {/* Card 4 */}
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+        <div 
+          onClick={() => { setStatusFilter('Unconfirmed'); setTimeout(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }}
+          className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-amber-300 hover:shadow-md transition-all">
           <div>
             <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">UNCONFIRMED / PENDING</span>
             <div className="flex items-baseline gap-2 mt-1">
@@ -558,7 +644,7 @@ export default function InquiriesPage() {
       </div>
 
       {/* Main Inquiries Records Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
+      <div ref={listRef} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
         
         {/* Controls Bar: Search & Status Filters */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
@@ -640,7 +726,13 @@ export default function InquiriesPage() {
             <tbody className="divide-y divide-slate-100 text-xs font-medium">
               {filteredInquiries.length > 0 ? (
                 filteredInquiries.map((inq) => (
-                  <tr key={inq.id} className={`transition-colors text-slate-800 ${inq.holdStatus ? 'bg-amber-50/40 hover:bg-amber-50/70' : 'bg-white hover:bg-slate-50/80'}`}>
+                  <tr key={inq.id} className={`transition-all text-slate-800 ${
+                    highlightedInquiryId === inq.id
+                      ? 'bg-blue-50 ring-2 ring-inset ring-blue-400'
+                      : inq.holdStatus
+                      ? 'bg-amber-50/40 hover:bg-amber-50/70'
+                      : 'bg-white hover:bg-slate-50/80'
+                  }`}>
                     <td className="py-3 px-4 font-mono font-bold text-blue-600">{inq.inquiryCode || inq.id}</td>
                     <td className="py-3 px-4">
                       <div>
@@ -1006,14 +1098,24 @@ export default function InquiriesPage() {
                   </label>
                   <select
                     value={formInquiry.status}
-                    onChange={(e) => setFormInquiry({ ...formInquiry, status: e.target.value as any })}
-                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                    onChange={(e) => handleStatusChangeAttempt(formInquiry as Inquiry, e.target.value)}
+                    disabled={formInquiry.status === 'Confirmed'}
+                    className={`w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+                      formInquiry.status === 'Confirmed' ? 'bg-slate-100 cursor-not-allowed opacity-75' : 'bg-white'
+                    }`}
                   >
                     <option value="Inquiry Received">Inquiry Received</option>
                     <option value="Offer Sent">Offer Sent</option>
-                    <option value="Confirmed">Confirmed (Order Won)</option>
-                    <option value="Unconfirmed">Unconfirmed / Pending</option>
+                    {formInquiry.status === 'Confirmed' && (
+                      <option value="Confirmed">Confirmed (Order Won) — Terminal State</option>
+                    )}
+                    {formInquiry.status !== 'Confirmed' && (
+                      <option value="Unconfirmed">Unconfirmed / Pending</option>
+                    )}
                   </select>
+                  {formInquiry.status === 'Confirmed' && (
+                    <p className="text-[10px] text-slate-400 font-medium mt-1">Confirmed orders cannot be reverted. Use the On Hold button to pause the project.</p>
+                  )}
                 </div>
               </div>
 
@@ -1175,6 +1277,78 @@ export default function InquiriesPage() {
           inquiryId={assignTeamInquiryId} 
           onClose={() => setAssignTeamInquiryId(null)} 
         />
+      )}
+
+      {/* Offer Details Gated Modal */}
+      {isOfferDetailsModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+              <div className="flex items-center gap-2">
+                <Send size={18} className="text-indigo-600" />
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Quotation Details Required</h3>
+                  <p className="text-[11px] text-slate-400">Required before changing status to Offer Sent</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setIsOfferDetailsModalOpen(false); setPendingStatusChange(null); }}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleConfirmOfferDetails} className="p-6 space-y-4">
+              {offerDetailsError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 flex items-center gap-2">
+                  <AlertTriangle size={14} className="shrink-0" />
+                  <span>{offerDetailsError}</span>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                  Quotation Sent By <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Rajesh Kumar"
+                  value={offerDetails.sentBy}
+                  onChange={(e) => setOfferDetails({ ...offerDetails, sentBy: e.target.value })}
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                  Quotation Reference No. <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. QTN-2026-001"
+                  value={offerDetails.refNo}
+                  onChange={(e) => setOfferDetails({ ...offerDetails, refNo: e.target.value })}
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setIsOfferDetailsModalOpen(false); setPendingStatusChange(null); }}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-500/20 transition-colors cursor-pointer"
+                >
+                  Confirm & Update Status
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
     </div>

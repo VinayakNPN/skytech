@@ -95,22 +95,22 @@ const GENERATE_INITIAL_WBS = (): WBSPhase[] => [
   {
     id: 'phase-2',
     wbsCode: '2.0',
-    name: 'DESIGN & COSTING DEPT.',
-    badge: 'DESIGN',
+    name: 'COSTING DEPT.',
+    badge: 'COSTING',
     badgeBg: 'bg-indigo-100',
     badgeText: 'text-indigo-700',
     owner: 'Design Lead',
     tasks: [
-      { id: '2.1', wbsCode: '2.1', name: 'Ga Drawing', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'Amol M.', planHours: 12, actualHours: 12, status: 'DONE', progress: 100 },
-      { id: '2.2', wbsCode: '2.2', name: 'SLD (Single Line Diagram)', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'Amol M.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
-      { id: '2.3', wbsCode: '2.3', name: 'Control Drawing', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'Design Team', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
-      { id: '2.4', wbsCode: '2.4', name: 'All Drawing Approve', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'Client Eng.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
-      { id: '2.5', wbsCode: '2.5', name: 'BOQ (Bill of Quantities)', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'Costing Team', planHours: 10, actualHours: 10, status: 'DONE', progress: 100 },
-      { id: '2.6', wbsCode: '2.6', name: 'Job Loaded', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'System Admin', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
-      { id: '2.7', wbsCode: '2.7', name: 'Job file Send to Dept.', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-01', owner: 'Dispatch Lead', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '2.1', wbsCode: '2.1', name: 'Ga Drawing', phaseId: 'phase-2', phaseName: 'COSTING DEPT.', phaseBadge: 'COSTING', projectId: 'JOB-01', owner: 'Amol M.', planHours: 12, actualHours: 12, status: 'DONE', progress: 100 },
+      { id: '2.2', wbsCode: '2.2', name: 'SLD (Single Line Diagram)', phaseId: 'phase-2', phaseName: 'COSTING DEPT.', phaseBadge: 'COSTING', projectId: 'JOB-01', owner: 'Amol M.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
+      { id: '2.3', wbsCode: '2.3', name: 'Control Drawing', phaseId: 'phase-2', phaseName: 'COSTING DEPT.', phaseBadge: 'COSTING', projectId: 'JOB-01', owner: 'Design Team', planHours: 16, actualHours: 16, status: 'DONE', progress: 100 },
+      { id: '2.4', wbsCode: '2.4', name: 'All Drawing Approve', phaseId: 'phase-2', phaseName: 'COSTING DEPT.', phaseBadge: 'COSTING', projectId: 'JOB-01', owner: 'Client Eng.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 },
+      { id: '2.5', wbsCode: '2.5', name: 'BOQ (Bill of Quantities)', phaseId: 'phase-2', phaseName: 'COSTING DEPT.', phaseBadge: 'COSTING', projectId: 'JOB-01', owner: 'Costing Team', planHours: 10, actualHours: 10, status: 'DONE', progress: 100 },
+      { id: '2.6', wbsCode: '2.6', name: 'Job Loaded', phaseId: 'phase-2', phaseName: 'COSTING DEPT.', phaseBadge: 'COSTING', projectId: 'JOB-01', owner: 'System Admin', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
+      { id: '2.7', wbsCode: '2.7', name: 'Job file Send to Dept.', phaseId: 'phase-2', phaseName: 'COSTING DEPT.', phaseBadge: 'COSTING', projectId: 'JOB-01', owner: 'Dispatch Lead', planHours: 2, actualHours: 2, status: 'DONE', progress: 100 },
 
-      { id: '2.1-102', wbsCode: '2.1', name: 'Ga Drawing', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-02', owner: 'Amol M.', planHours: 12, actualHours: 12, status: 'DONE', progress: 100 },
-      { id: '2.4-102', wbsCode: '2.4', name: 'All Drawing Approve', phaseId: 'phase-2', phaseName: 'DESIGN & COSTING DEPT.', phaseBadge: 'DESIGN', projectId: 'JOB-02', owner: 'Client Eng.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 }
+      { id: '2.1-102', wbsCode: '2.1', name: 'Ga Drawing', phaseId: 'phase-2', phaseName: 'COSTING DEPT.', phaseBadge: 'COSTING', projectId: 'JOB-02', owner: 'Amol M.', planHours: 12, actualHours: 12, status: 'DONE', progress: 100 },
+      { id: '2.4-102', wbsCode: '2.4', name: 'All Drawing Approve', phaseId: 'phase-2', phaseName: 'COSTING DEPT.', phaseBadge: 'COSTING', projectId: 'JOB-02', owner: 'Client Eng.', planHours: 8, actualHours: 8, status: 'DONE', progress: 100 }
     ]
   },
   {
@@ -250,9 +250,13 @@ export default function WBSPage() {
     'phase-5': true,
     'phase-6': true,
     'phase-7': true,
-    'phase-8': false,
-    'phase-9': false
+    'phase-8': true,
+    'phase-9': true
   });
+
+  useEffect(() => {
+    expandAll();
+  }, [selectedProjectId]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -604,6 +608,62 @@ export default function WBSPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       
+      {/* Prominent Project Selector */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Active Project</span>
+            {confirmedProjects.length === 0 ? (
+              <div className="flex items-center gap-2 py-2">
+                <div className="w-2 h-2 rounded-full bg-slate-300" />
+                <span className="text-sm font-semibold text-slate-400">No confirmed projects found. Connect backend to load projects.</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <select
+                  value={selectedProjectId}
+                  onChange={(e) => {
+                    setSelectedProjectId(e.target.value);
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('skytech_selected_project_id', e.target.value);
+                      window.dispatchEvent(new Event('projectChanged'));
+                    }
+                  }}
+                  className="text-base font-extrabold text-slate-900 bg-transparent border-0 focus:ring-0 focus:outline-none cursor-pointer pr-8 appearance-none"
+                >
+                  {confirmedProjects.map(p => (
+                    <option key={p.id} value={p.inquiryCode || p.id}>
+                      [{p.inquiryCode || p.id}] {p.project} — {p.client}
+                    </option>
+                  ))}
+                </select>
+                {selectedProject && (
+                  <span className="text-xs text-slate-400 font-medium hidden sm:block">
+                    {selectedProject.client}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={expandAll}
+              className="px-3 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl border border-slate-200 transition-colors cursor-pointer"
+            >
+              Expand All
+            </button>
+            <button
+              type="button"
+              onClick={collapseAll}
+              className="px-3 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl border border-slate-200 transition-colors cursor-pointer"
+            >
+              Collapse All
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Top Header Bar & Confirmed Project Selection Dropdown */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
         
@@ -835,24 +895,24 @@ export default function WBSPage() {
                       onClick={() => togglePhase(phase.id)}
                       className="bg-slate-900/90 text-white font-bold cursor-pointer hover:bg-slate-900 transition-colors border-b border-slate-800"
                     >
-                      <td className="py-3 px-4 text-blue-400 font-mono font-bold">{phase.wbsCode}</td>
+                      <td className="py-3 px-4 text-slate-200 font-mono font-bold">{phase.wbsCode}</td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
                           <button type="button" className="p-0.5 rounded hover:bg-slate-800 text-slate-300">
                             {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                           </button>
-                          <span className="tracking-wide text-xs">{phase.name}</span>
+                          <span className="tracking-wide text-xs text-white">{phase.name}</span>
                           <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full ml-2 font-normal">
                             {completedCount}/{totalCount} Done
                           </span>
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-md uppercase tracking-wider ${phase.badgeBg} ${phase.badgeText}`}>
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-white/20 text-white tracking-wider border border-white/20">
                           {phase.badge}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-slate-300 font-normal">{phase.owner}</td>
+                      <td className="py-3 px-4 text-slate-200 font-normal">{phase.owner}</td>
                       <td className="py-3 px-4 text-center text-slate-300 font-mono text-xs">
                         {filteredSubtasks.reduce((sum, t) => sum + t.planHours, 0)} hrs
                       </td>

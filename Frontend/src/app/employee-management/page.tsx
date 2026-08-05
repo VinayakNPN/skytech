@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard,
   Users,
@@ -27,9 +29,15 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  RotateCcw
+  RotateCcw,
+  ArrowLeft,
+  Menu,
+  Bell,
+  LogOut,
+  User
 } from 'lucide-react';
 import { API_BASE_URL } from '@/config/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -183,10 +191,36 @@ const fallbackVisits: VisitReport[] = [
   { id: 'VIS-004', title: 'Site Inspection survey', client: 'Kolkata Flour Mill', location: 'Kolkata', engineer: 'Harpreet Singh', date: '2026-07-22', status: 'Scheduled', notes: 'Scheduled for sensor fitting audit and cable tray layout measurement.' }
 ];
 
-export default function EmployeeManagementPrototype() {
+function EmployeeManagementContent() {
+  const { user: authUser, logout } = useAuth();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+
   const [activeTab, setActiveTab] = useState<'dashboard' | 'attendance' | 'tasks' | 'visits' | 'leave' | 'salary' | 'jobs'>('dashboard');
   const [loading, setLoading] = useState(true);
   const [backendOnline, setBackendOnline] = useState(false);
+
+  useEffect(() => {
+    if (tabParam && ['dashboard', 'attendance', 'tasks', 'visits', 'leave', 'salary', 'jobs'].includes(tabParam)) {
+      setActiveTab(tabParam as any);
+    } else if (!tabParam) {
+      setActiveTab('dashboard');
+    }
+  }, [tabParam]);
+
+  const displayUser = authUser || {
+    name: 'Vinayak NPN',
+    email: 'vinayak@skytech.com',
+    role: 'Admin',
+    department: 'Management'
+  };
+
+  const userInitials = (displayUser.name || 'Vinayak')
+    .split(' ')
+    .map((n: string) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || 'VN';
 
   // Dynamically initialize to Today's date by default
   const today = new Date();
@@ -210,7 +244,7 @@ export default function EmployeeManagementPrototype() {
   const [viewYear, setViewYear] = useState(todayYear);
   const [calendarOpen, setCalendarOpen] = useState(false);
 
-  const calendarRef = React.useRef<HTMLDivElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
 
   // Click outside listener for calendar popover
   useEffect(() => {
@@ -740,162 +774,13 @@ export default function EmployeeManagementPrototype() {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#F8FAFC] font-sans antialiased text-slate-800">
-      
-      {/* Top Banner Header */}
-      <header className="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 z-20 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span className="text-xs font-semibold tracking-wider text-slate-300 uppercase">
-            Skytech Switchgear Employee Management App — interactive prototype
-          </span>
+    <div className="w-full min-w-0 p-4 md:p-8 bg-slate-50 font-sans antialiased text-slate-800">
+      {loading ? (
+        <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-xs font-bold text-slate-500 tracking-wider">Syncing prototype database...</p>
         </div>
-        <div className="flex items-center gap-3">
-          {backendOnline ? (
-            <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/50 border border-emerald-900/60 px-2 py-0.5 rounded-md">
-              Backend Connected
-            </span>
-          ) : (
-            <span className="text-[10px] font-semibold text-amber-400 bg-amber-950/50 border border-amber-900/60 px-2 py-0.5 rounded-md">
-              Local Prototype Mode
-            </span>
-          )}
-          <a
-            href="/"
-            className="text-[11px] font-medium text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-700/80 px-2.5 py-1 rounded-md transition-all"
-          >
-            ← Main PM System
-          </a>
-        </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden relative">
-        
-        {/* Custom Navy Sidebar */}
-        <aside className="w-64 fixed inset-y-0 left-0 mt-12 bg-[#111C24] text-slate-200 flex-shrink-0 flex flex-col justify-between border-r border-slate-800 overflow-y-auto z-10 pb-12">
-          <div>
-            {/* Logo/Identity Section */}
-            <div 
-              onClick={() => setActiveTab('dashboard')}
-              className="h-20 flex flex-col justify-center px-6 bg-[#0B1319] hover:bg-[#0E1820] border-b border-slate-800 cursor-pointer transition-colors group"
-            >
-              <span className="text-sm font-bold tracking-wider text-white group-hover:text-blue-400 transition-colors">Skytech Switchgear</span>
-              <span className="text-[11px] text-slate-400 tracking-widest font-medium uppercase mt-0.5">Employee Management</span>
-            </div>
-
-            {/* MAIN Section Navigation */}
-            <div className="mt-6 px-4">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-4 block mb-2">MAIN</span>
-              <nav className="space-y-1">
-                <button
-                  onClick={() => setActiveTab('dashboard')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                    activeTab === 'dashboard'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-                      : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-                  }`}
-                >
-                  <LayoutDashboard size={14} />
-                  Dashboard
-                </button>
-                <button
-                  onClick={() => setActiveTab('attendance')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                    activeTab === 'attendance'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-                      : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-                  }`}
-                >
-                  <Clock size={14} />
-                  Attendance
-                </button>
-                <button
-                  onClick={() => setActiveTab('tasks')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                    activeTab === 'tasks'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-                      : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-                  }`}
-                >
-                  <CheckSquare size={14} />
-                  Tasks
-                </button>
-                <button
-                  onClick={() => setActiveTab('visits')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                    activeTab === 'visits'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-                      : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-                  }`}
-                >
-                  <MapPin size={14} />
-                  Visit Reports
-                </button>
-              </nav>
-            </div>
-
-            {/* HR Section Navigation */}
-            <div className="mt-8 px-4">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-4 block mb-2">HR</span>
-              <nav className="space-y-1">
-                <button
-                  onClick={() => setActiveTab('leave')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                    activeTab === 'leave'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-                      : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-                  }`}
-                >
-                  <Calendar size={14} />
-                  Leave
-                </button>
-                <button
-                  onClick={() => setActiveTab('salary')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                    activeTab === 'salary'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-                      : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-                  }`}
-                >
-                  <DollarSign size={14} />
-                  Salary
-                </button>
-                <button
-                  onClick={() => setActiveTab('jobs')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                    activeTab === 'jobs'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-                      : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-                  }`}
-                >
-                  <TrendingUp size={14} />
-                  Running Jobs
-                </button>
-              </nav>
-            </div>
-          </div>
-
-          {/* Bottom Profile card */}
-          <div className="p-4 border-t border-slate-800 bg-[#0B1319]/50 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-sky-800/90 text-white flex items-center justify-center font-extrabold text-xs border border-sky-600/40 shadow-sm shadow-sky-900/40">
-              PK
-            </div>
-            <div className="flex flex-col text-left">
-              <span className="text-xs font-bold text-slate-100">Pankaj</span>
-              <span className="text-[10px] text-slate-400">Admin</span>
-            </div>
-          </div>
-        </aside>
-
-        {/* Content Panel Area */}
-        <main className="flex-1 overflow-y-auto p-8 bg-slate-50 ml-64">
-          
-          {loading ? (
-            <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
-              <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-xs font-bold text-slate-500 tracking-wider">Syncing prototype database...</p>
-            </div>
-          ) : (
+      ) : (
             <>
               {/* ========================================================================= */}
               {/* TAB 1: DASHBOARD VIEW                                                     */}
@@ -2163,8 +2048,19 @@ export default function EmployeeManagementPrototype() {
         </div>
       )}
 
-        </main>
-      </div>
     </div>
+  );
+}
+
+export default function EmployeeManagementPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-xs font-bold text-slate-500 tracking-wider">Loading Employee Hub...</p>
+      </div>
+    }>
+      <EmployeeManagementContent />
+    </Suspense>
   );
 }

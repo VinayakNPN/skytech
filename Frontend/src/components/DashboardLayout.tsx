@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { 
   LayoutDashboard, 
   ClipboardList, 
@@ -17,17 +17,25 @@ import {
   ChevronLeft,
   Workflow,
   Send,
-  Package
+  Package,
+  Clock,
+  CheckSquare,
+  MapPin,
+  Calendar,
+  DollarSign,
+  TrendingUp
 } from 'lucide-react';
 import { API_BASE_URL } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
 
-interface DashboardLayoutProps {
+export interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get('tab');
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -143,12 +151,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => window.removeEventListener('projectChanged', handleProjectEvent);
   }, []);
 
-  // Bypass standard layout for employee management sub-application or login page
-  if (pathname?.startsWith('/employee-management') || pathname === '/login') {
+  // Bypass standard layout for login page
+  if (pathname === '/login') {
     return <>{children}</>;
   }
 
-  // Sidebar Nav Sections matching reference style
+  // Sidebar Nav Sections matching main dashboard design
   const navSections = [
     {
       title: 'PROGRAMME',
@@ -160,10 +168,25 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       ]
     },
     {
+      title: 'MAIN',
+      items: [
+        ...(can('employeeHub', 'read') ? [{ id: 'attendance', name: 'Attendance', href: '/employee-management?tab=attendance', icon: Clock }] : []),
+        ...(can('employeeHub', 'read') ? [{ id: 'tasks', name: 'Tasks', href: '/employee-management?tab=tasks', icon: CheckSquare }] : []),
+        ...(can('employeeHub', 'read') ? [{ id: 'visits', name: 'Visit Reports', href: '/employee-management?tab=visits', icon: MapPin }] : []),
+      ]
+    },
+    {
+      title: 'HR',
+      items: [
+        ...(can('employeeHub', 'read') ? [{ id: 'leave', name: 'Leave', href: '/employee-management?tab=leave', icon: Calendar }] : []),
+        ...(can('employeeHub', 'read') ? [{ id: 'salary', name: 'Salary', href: '/employee-management?tab=salary', icon: DollarSign }] : []),
+        ...(can('employeeHub', 'read') ? [{ id: 'jobs', name: 'Running Jobs', href: '/employee-management?tab=jobs', icon: TrendingUp }] : []),
+      ]
+    },
+    {
       title: 'MANAGEMENT',
       items: [
         ...(can('employees', 'read') ? [{ id: 'employees', name: 'Employee Directory', href: '/employees', icon: Users }] : []),
-        ...(can('employeeHub', 'read') ? [{ id: 'employee-management', name: 'Employee Hub (Prototype)', href: '/employee-management', icon: Users }] : []),
       ]
     }
   ].filter(section => section.items.length > 0);
@@ -171,7 +194,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const allNavItems = navSections.flatMap(s => s.items);
 
   const getPageTitle = () => {
-    const active = allNavItems.find(item => item.href === pathname);
+    const active = allNavItems.find(item => {
+      if (item.href.includes('?tab=')) {
+        return pathname === '/employee-management' && currentTab === item.href.split('?tab=')[1];
+      }
+      return item.href === pathname;
+    });
     return active ? active.name : 'Skytech Program Management System';
   };
 
@@ -267,7 +295,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
                   {/* Menu Items */}
                   {filteredItems.map((item) => {
-                    const isActive = pathname === item.href;
+                    let isActive = false;
+                    if (item.href.includes('?tab=')) {
+                      const targetTab = item.href.split('?tab=')[1];
+                      isActive = pathname === '/employee-management' && currentTab === targetTab;
+                    } else {
+                      isActive = pathname === item.href;
+                    }
                     const Icon = item.icon;
                     return (
                       <Link
@@ -501,5 +535,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function DashboardLayout({ children }: DashboardLayoutProps) {
+  return (
+    <React.Suspense fallback={<div className="min-h-screen bg-[#F8FAFC]" />}>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </React.Suspense>
   );
 }

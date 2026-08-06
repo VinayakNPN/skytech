@@ -135,7 +135,8 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
         const res = await fetch(`${API_BASE_URL}/api/inquiries`);
         if (res.ok) {
           const data = await res.json();
-          setProjectsList(data);
+          const confirmed = data.filter((i: any) => i.status === 'Confirmed' && !i.holdStatus);
+          setProjectsList(confirmed);
         }
       } catch (err) {
         console.error(err);
@@ -171,7 +172,6 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       title: 'MAIN',
       items: [
         ...(can('employeeHub', 'read') ? [{ id: 'attendance', name: 'Attendance', href: '/employee-management?tab=attendance', icon: Clock }] : []),
-        ...(can('employeeHub', 'read') ? [{ id: 'tasks', name: 'Tasks', href: '/employee-management?tab=tasks', icon: CheckSquare }] : []),
         ...(can('employeeHub', 'read') ? [{ id: 'visits', name: 'Visit Reports', href: '/employee-management?tab=visits', icon: MapPin }] : []),
       ]
     },
@@ -180,7 +180,8 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       items: [
         ...(can('employeeHub', 'read') ? [{ id: 'leave', name: 'Leave', href: '/employee-management?tab=leave', icon: Calendar }] : []),
         ...(can('employeeHub', 'read') ? [{ id: 'salary', name: 'Salary', href: '/employee-management?tab=salary', icon: DollarSign }] : []),
-        ...(can('employeeHub', 'read') ? [{ id: 'jobs', name: 'Running Jobs', href: '/employee-management?tab=jobs', icon: TrendingUp }] : []),
+        // COMMENTED OUT — Running Jobs shown on main Dashboard instead. Uncomment to restore as sidebar link.
+        // ...(can('employeeHub', 'read') ? [{ id: 'jobs', name: 'Running Jobs', href: '/employee-management?tab=jobs', icon: TrendingUp }] : []),
       ]
     },
     {

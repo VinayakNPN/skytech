@@ -76,7 +76,16 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Start Server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info(`[Server] SkyTech PM Backend running on http://localhost:${PORT}`);
   logSystemEvent('API Server', `Express backend initialized on port ${PORT}`, 'info');
 });
+
+server.on('error', (error: any) => {
+  if (error.code === 'EADDRINUSE') {
+    logger.error(`[Server Error] Port ${PORT} is already in use. Clean up the process using port ${PORT} or set PORT in environment variables.`);
+  } else {
+    logger.error(`[Server Error] ${error.message}`);
+  }
+});
+

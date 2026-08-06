@@ -442,17 +442,14 @@ export default function WBSPage() {
     const fetchConfirmedInquiries = async () => {
       try {
         const headers = getAuthHeaders();
-        const [inqRes, jobsRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/inquiries`, { headers }),
-          fetch(`${API_BASE_URL}/api/inventory/jobs`, { headers })
-        ]);
+        const inqRes = await fetch(`${API_BASE_URL}/api/inquiries`, { headers });
 
         let combined: ConfirmedInquiryProject[] = [];
 
         if (inqRes.ok) {
           const inqData = await inqRes.json();
           combined = inqData
-            .filter((i: any) => i.status === 'Confirmed')
+            .filter((i: any) => i.status === 'Confirmed' && !i.holdStatus)
             .map((i: any) => ({
               id: i.inquiryCode || i.id,
               inquiryCode: i.inquiryCode || i.id,
@@ -462,19 +459,6 @@ export default function WBSPage() {
               date: i.date || new Date().toISOString(),
               status: 'Confirmed'
             }));
-        }
-
-        if (combined.length === 0 && jobsRes.ok) {
-          const jobsData = await jobsRes.json();
-          combined = jobsData.map((j: any) => ({
-            id: j.jobNo,
-            inquiryCode: j.jobNo,
-            client: j.clientName || j.jobNo,
-            project: j.clientName || 'Job Master',
-            amount: '1500000',
-            date: new Date().toISOString(),
-            status: 'Confirmed'
-          }));
         }
 
         if (combined.length > 0) {
@@ -774,22 +758,7 @@ export default function WBSPage() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={expandAll}
-              className="px-3 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl border border-slate-200 transition-colors cursor-pointer"
-            >
-              Expand All
-            </button>
-            <button
-              type="button"
-              onClick={collapseAll}
-              className="px-3 py-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl border border-slate-200 transition-colors cursor-pointer"
-            >
-              Collapse All
-            </button>
-          </div>
+
         </div>
       </div>
 

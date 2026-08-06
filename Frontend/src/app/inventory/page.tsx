@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Package,
   Plus,
@@ -15,7 +15,9 @@ import {
   TrendingUp,
   X,
   Upload,
-  CheckCircle
+  CheckCircle,
+  Wrench,
+  BarChart3
 } from "lucide-react";
 import { API_BASE_URL, getAuthHeaders } from "@/config/api";
 import { ExcelUploadModal } from "@/components/ExcelUploadModal";
@@ -90,6 +92,11 @@ export default function InventoryPage() {
   const [isStockInOpen, setIsStockInOpen] = useState(false);
   const [isStockOutOpen, setIsStockOutOpen] = useState(false);
 
+  // Interactive KPI state — track previous value so animation only fires on real changes
+  const [displayValue, setDisplayValue] = useState<number>(0);
+  const prevTotalValue = useRef<number>(0);
+  const lowStockRef = useRef<HTMLDivElement>(null);
+
   // Forms
   const [newItem, setNewItem] = useState({
     itemCode: "",
@@ -119,6 +126,38 @@ export default function InventoryPage() {
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  useEffect(() => {
+    if (!stats?.totalValue) return;
+    const target = Number(stats.totalValue);
+    // Skip animation on initial load (prevTotalValue starts at 0)
+    // Only animate when the value actually changes after first load
+    if (prevTotalValue.current === 0) {
+      // First load — set directly, no animation
+      setDisplayValue(target);
+      prevTotalValue.current = target;
+      return;
+    }
+    if (prevTotalValue.current === target) return;
+    const start = prevTotalValue.current;
+    prevTotalValue.current = target;
+    const steps = 20;
+    const diff = target - start;
+    const step = diff / steps;
+    let count = 0;
+    const timer = setInterval(() => {
+      count++;
+      setDisplayValue(prev => {
+        const next = prev + step;
+        if (count >= steps) {
+          clearInterval(timer);
+          return target;
+        }
+        return Math.round(next);
+      });
+    }, 30);
+    return () => clearInterval(timer);
+  }, [stats?.totalValue]);
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -227,6 +266,10 @@ export default function InventoryPage() {
     return matchesSearch && matchesCat;
   });
 
+  const handleLowStockCardClick = () => {
+    lowStockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       
@@ -310,7 +353,7 @@ export default function InventoryPage() {
               <div>
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">TOTAL INVENTORY VALUE</span>
                 <div className="text-2xl font-extrabold text-slate-900 mt-1">
-                  ₹ {stats ? Number(stats.totalValue).toLocaleString("en-IN") : "0"}
+                  ₹ {displayValue.toLocaleString("en-IN")}
                 </div>
                 <span className="text-[11px] text-emerald-600 font-semibold mt-1 block">Live stock valuation</span>
               </div>
@@ -319,7 +362,7 @@ export default function InventoryPage() {
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+            <div onClick={() => setActiveTab('items')} className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:shadow-md transition-shadow">
               <div>
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">TOTAL STOCK ITEMS</span>
                 <div className="text-2xl font-extrabold text-slate-900 mt-1">{stats?.totalItems || 0}</div>
@@ -330,7 +373,7 @@ export default function InventoryPage() {
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+            <div onClick={handleLowStockCardClick} className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:shadow-md transition-shadow">
               <div>
                 <span className="text-[10px] font-bold text-rose-700 uppercase tracking-wider">LOW STOCK ALERTS</span>
                 <div className="text-2xl font-extrabold text-rose-950 mt-1">{stats?.lowStockCount || 0}</div>
@@ -354,7 +397,10 @@ export default function InventoryPage() {
           </div>
 
           {/* Low Stock Items Section */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+          <div 
+            ref={lowStockRef}
+            className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4"
+          >
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Low Stock Re-order Alerts</h3>
@@ -411,6 +457,91 @@ export default function InventoryPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          {/* Tool Inventory & Site Visit Analytics */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Tool Inventory & Site Visit Analytics</h3>
+                <p className="text-xs text-slate-500">Material usage and job supply metrics across all site visits</p>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+                <BarChart3 size={16} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Tools In Use */}
+              {(() => {
+                const toolsInUse = new Set(issues.map(i => i.itemCode)).size;
+                return (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tools In Use</span>
+                      <div className="text-2xl font-extrabold text-slate-900 mt-1">{toolsInUse}</div>
+                      <span className="text-[11px] text-violet-600 font-semibold mt-0.5 block">Distinct items issued</span>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+                      <Wrench size={20} />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Site Issue Trips */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Site Issue Trips</span>
+                  <div className="text-2xl font-extrabold text-slate-900 mt-1">{issues.length}</div>
+                  <span className="text-[11px] text-blue-600 font-semibold mt-0.5 block">Total stock-out entries</span>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <ArrowDownRight size={20} />
+                </div>
+              </div>
+
+              {/* Most Used Tool */}
+              {(() => {
+                const usageMap: Record<string, number> = {};
+                issues.forEach(i => { usageMap[i.itemCode] = (usageMap[i.itemCode] || 0) + i.qtyOut; });
+                const topEntry = Object.entries(usageMap).sort((a, b) => b[1] - a[1])[0];
+                const topItem = topEntry ? items.find(i => i.itemCode === topEntry[0]) : null;
+                return (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Most Used Tool</span>
+                      <div className="text-sm font-extrabold text-slate-900 mt-1 truncate">
+                        {topEntry ? topEntry[0] : '—'}
+                      </div>
+                      <span className="text-[11px] text-emerald-600 font-semibold mt-0.5 block truncate">
+                        {topItem?.description ? topItem.description.substring(0, 22) + (topItem.description.length > 22 ? '…' : '') : 'No issues yet'}
+                      </span>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 ml-2">
+                      <TrendingUp size={20} />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Jobs Supplied */}
+              {(() => {
+                const jobsSupplied = new Set(issues.map(i => i.jobNo)).size;
+                return (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Jobs Supplied</span>
+                      <div className="text-2xl font-extrabold text-slate-900 mt-1">{jobsSupplied}</div>
+                      <span className="text-[11px] text-indigo-600 font-semibold mt-0.5 block">Distinct jobs with material</span>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                      <Briefcase size={20} />
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -626,51 +757,140 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* TAB 5: JOB-WISE SUMMARY MATRIX */}
-      {activeTab === "summary" && jobSummary && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-900">Job-wise Material Issue Summary Matrix</h3>
-            <p className="text-xs text-slate-500">Cross-tab summary showing total quantity of each material issued per Job</p>
+      {/* TAB 5: JOB-WISE SUMMARY MATRIX (JOB-COLUMN BOARD VIEW BASED ON SKETCH) */}
+      {activeTab === "summary" && (
+        <div className="space-y-6">
+          {/* Header Bar */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 text-blue-600 font-bold text-xs uppercase tracking-wider">
+                <Layers size={16} />
+                <span>Job-wise Allocation</span>
+              </div>
+              <h3 className="text-xl font-extrabold text-slate-900 tracking-tight mt-1">
+                Job-wise Material Issue Summary
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Project job columns displaying issued materials and quantities
+              </p>
+            </div>
+
+            {jobSummary && (
+              <div className="flex items-center gap-4 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+                <div className="px-3 py-1 text-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Jobs</span>
+                  <span className="text-base font-extrabold text-slate-900 font-mono">
+                    {jobSummary.jobs?.length || 0}
+                  </span>
+                </div>
+                <div className="w-px h-8 bg-slate-200" />
+                <div className="px-3 py-1 text-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Supplied Jobs</span>
+                  <span className="text-base font-extrabold text-blue-600 font-mono">
+                    {jobSummary.jobs?.filter((j: any) =>
+                      (jobSummary.items || []).some((item: any) => (jobSummary.matrix[j.jobNo]?.[item.itemCode] || 0) > 0)
+                    ).length || 0}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-[#0B1728] text-slate-300 text-[10px] font-bold uppercase">
-                  <th className="py-3 px-4 sticky left-0 bg-[#0B1728] border-r border-slate-700 min-w-[200px]">JOB DETAILS</th>
-                  {jobSummary.items.map((item: any) => (
-                    <th key={item.itemCode} className="py-3 px-3 text-center min-w-[90px]">
-                      {item.itemCode}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {jobSummary.jobs.map((job: any) => (
-                  <tr key={job.jobNo} className="hover:bg-slate-50">
-                    <td className="py-3 px-4 sticky left-0 bg-white border-r border-slate-200">
-                      <span className="font-mono font-bold text-indigo-700 block">{job.jobNo}</span>
-                      <span className="text-[11px] text-slate-500 truncate block">{job.clientName}</span>
-                    </td>
-                    {jobSummary.items.map((item: any) => {
-                      const qty = jobSummary.matrix[job.jobNo]?.[item.itemCode] || 0;
-                      return (
-                        <td
-                          key={item.itemCode}
-                          className={`py-3 px-3 text-center font-mono font-bold ${
-                            qty > 0 ? "bg-indigo-50 text-indigo-900" : "text-slate-300"
-                          }`}
-                        >
-                          {qty > 0 ? qty : "-"}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {!jobSummary ? (
+            <div className="bg-white p-12 rounded-2xl border border-slate-200/80 shadow-xs text-center text-slate-400 text-sm font-semibold">
+              No job-wise data available. Connect backend to load summary.
+            </div>
+          ) : (() => {
+            const activeJobsWithItems = (jobSummary.jobs || []).filter((job: any) =>
+              (jobSummary.items || []).some((item: any) => (jobSummary.matrix[job.jobNo]?.[item.itemCode] || 0) > 0)
+            );
+
+            if (activeJobsWithItems.length === 0) {
+              return (
+                <div className="bg-white p-12 rounded-2xl border border-slate-200/80 shadow-xs text-center text-slate-400 text-sm font-semibold">
+                  No material issues recorded yet.
+                </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-start">
+                {activeJobsWithItems.map((job: any) => {
+                  // Filter items issued to this job
+                  const issuedItems = (jobSummary.items || []).filter((item: any) =>
+                    (jobSummary.matrix[job.jobNo]?.[item.itemCode] || 0) > 0
+                  );
+
+                return (
+                  <div key={job.jobNo} className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+                    {/* Job Column Header (Dark Theme) */}
+                    <div className="bg-[#0B1728] p-4 text-white border-b border-slate-800">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-mono font-extrabold text-sm text-indigo-300 tracking-wider">
+                          {job.jobNo}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-700">
+                          {issuedItems.length} {issuedItems.length === 1 ? 'item' : 'items'}
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-200 truncate" title={job.clientName}>
+                        {job.clientName || 'Job Master'}
+                      </h4>
+                    </div>
+
+                    {/* Stack of Item Cards under Job Column */}
+                    <div className="p-3 space-y-3 bg-slate-50/50 min-h-[200px] flex-1">
+                      {issuedItems.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-10 text-center text-slate-400">
+                          <Package size={24} className="text-slate-300 mb-2" />
+                          <span className="text-xs font-medium">No materials issued to this job</span>
+                        </div>
+                      ) : (
+                        issuedItems.map((item: any) => {
+                          const qty = jobSummary.matrix[job.jobNo]?.[item.itemCode] || 0;
+                          return (
+                            <div
+                              key={item.itemCode}
+                              className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs hover:border-blue-400 hover:shadow-xs transition-all space-y-2"
+                            >
+                              {/* Item Code & Category */}
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono font-extrabold text-xs text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md">
+                                  {item.itemCode}
+                                </span>
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                  {item.category || 'Material'}
+                                </span>
+                              </div>
+
+                              {/* Item Description */}
+                              <div className="text-xs font-bold text-slate-800 leading-snug line-clamp-2" title={item.description}>
+                                {item.description}
+                              </div>
+
+                              {/* Unit & Quantity */}
+                              <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-2">
+                                <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                                  <span className="text-[10px] uppercase font-bold text-slate-400">Unit:</span> {item.unit || 'Nos'}
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase">Qty:</span>
+                                  <span className="font-mono font-extrabold text-sm text-[#0E3B68] bg-blue-50 border border-blue-100 px-2.5 py-0.5 rounded-md">
+                                    {qty}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
         </div>
       )}
 

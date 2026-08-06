@@ -73,4 +73,26 @@ router.post('/', authorize('employees', 'write'), validateBody(createEmployeeSch
   }
 });
 
+// Update Employee Details
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, designation, department, role, status } = req.body;
+    const updated = await prisma.employee.update({
+      where: { id },
+      data: { 
+        ...(name && { name }),
+        ...(email && { email }),
+        ...(designation && { designation }),
+        ...(department && { department }),
+        ...(role && { role }),
+        ...(status && { status })
+      }
+    });
+    res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to update employee', details: err.message });
+  }
+});
+
 export default router;

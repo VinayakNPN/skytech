@@ -196,12 +196,12 @@ function EmployeeManagementContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'attendance' | 'tasks' | 'visits' | 'leave' | 'salary' | 'jobs'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'attendance' | 'visits' | 'leave' | 'salary'>('dashboard');
   const [loading, setLoading] = useState(true);
   const [backendOnline, setBackendOnline] = useState(false);
 
   useEffect(() => {
-    if (tabParam && ['dashboard', 'attendance', 'tasks', 'visits', 'leave', 'salary', 'jobs'].includes(tabParam)) {
+    if (tabParam && ['dashboard', 'attendance', 'visits', 'leave', 'salary'].includes(tabParam)) {
       setActiveTab(tabParam as any);
     } else if (!tabParam) {
       setActiveTab('dashboard');
@@ -1023,10 +1023,10 @@ function EmployeeManagementContent() {
                         <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
                           <h3 className="font-bold text-slate-900 text-sm">Active Tasks</h3>
                           <button
-                            onClick={() => setActiveTab('tasks')}
+                            onClick={() => window.location.href = '/wbs'}
                             className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
                           >
-                            View all →
+                            View WBS →
                           </button>
                         </div>
 
@@ -1112,10 +1112,10 @@ function EmployeeManagementContent() {
                         <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
                           <h3 className="font-bold text-slate-900 text-sm">Running Jobs — Status</h3>
                           <button
-                            onClick={() => setActiveTab('jobs')}
+                            onClick={() => window.location.href = '/'}
                             className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
                           >
-                            View all →
+                            View Dashboard →
                           </button>
                         </div>
 
@@ -1309,80 +1309,6 @@ function EmployeeManagementContent() {
                           </tbody>
                         </table>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ========================================================================= */}
-              {/* TAB 3: TASKS VIEW                                                         */}
-              {/* ========================================================================= */}
-              {activeTab === 'tasks' && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-                    <div>
-                      <h2 className="text-xl font-bold text-slate-900">Task Management</h2>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Employee tasks are derived directly from Work Breakdown Structure (WBS) assignments.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Task List Table (Full Width - WBS Derived) */}
-                  <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-left space-y-4">
-                    <div className="flex items-center justify-between border-b pb-2">
-                      <h3 className="font-bold text-sm text-slate-800">WBS Assigned Tasks</h3>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase">Assigned via WBS Dashboard</span>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs text-left">
-                        <thead>
-                          <tr className="border-b border-slate-100 text-slate-400 font-bold">
-                            <th className="py-2.5">WBS Code</th>
-                            <th className="py-2.5">Job No</th>
-                            <th className="py-2.5">Task Description</th>
-                            <th className="py-2.5">Department Scope</th>
-                            <th className="py-2.5">Assignee</th>
-                            <th className="py-2.5 text-right">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tasks.length === 0 && (
-                            <tr>
-                              <td colSpan={6} className="text-center py-6 text-slate-400">
-                                No tasks assigned to your department scope yet. Assign tasks via WBS or project team settings.
-                              </td>
-                            </tr>
-                          )}
-                          {tasks.map((task: any) => (
-                            <tr key={task.id || task.assignmentId} className="border-b border-slate-50 hover:bg-slate-50/50">
-                              <td className="py-3 font-mono font-bold text-slate-500">{task.wbsCode || '1.1'}</td>
-                              <td className="py-3 font-mono font-bold text-blue-600">
-                                <span className="bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{task.jobNo || 'N/A'}</span>
-                              </td>
-                              <td className="py-3 font-semibold text-slate-800">{task.title}</td>
-                              <td className="py-3 font-semibold">
-                                <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-200">
-                                  {task.department || task.phaseName || 'General'}
-                                </span>
-                              </td>
-                              <td className="py-3 text-slate-600 font-medium">{task.assignedTo || task.assignedToCode}</td>
-                              <td className="py-3 text-right">
-                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded border shadow-2xs ${
-                                  task.status === 'DONE'
-                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                    : task.status === 'IN PROGRESS'
-                                    ? 'bg-amber-50 border-amber-200 text-amber-700'
-                                    : 'bg-slate-100 border-slate-200 text-slate-600'
-                                }`}>
-                                  {task.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-
                     </div>
                   </div>
                 </div>
@@ -1841,7 +1767,8 @@ function EmployeeManagementContent() {
               {/* ========================================================================= */}
               {/* TAB 7: RUNNING JOBS VIEW                                                  */}
               {/* ========================================================================= */}
-              {activeTab === 'jobs' && (
+              {/* Running Jobs tab disabled — shown on main Dashboard instead. Change false to activeTab === 'jobs' to re-enable */}
+              {false && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                     <h2 className="text-xl font-bold text-slate-900">Running Jobs — Site Projects</h2>

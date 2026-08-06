@@ -53,5 +53,41 @@ This document tracks daily progress, commits, and major milestones achieved duri
 - **Frontend Leave UI:** Updated `/employee-management` UI with leave application modals and pending approval sub-tabs.
 
 ---
+
+## August 6, 2026
+
+### Inquiry Management & Status Workflows
+- **Dual UUID & InquiryCode Lookup:** Updated `Backend/src/routes/inquiries.ts` (`PUT /:id` and `DELETE /:id`) to resolve inquiries by either UUID or human-readable `inquiryCode` (e.g., `JOB-09`), fixing DB status updates when moving inquiries to `Confirmed`.
+- **Strict Contact Phone Validation:** Enforced 10-digit Indian mobile number validation (`/^(?:\+91)?([6-9]\d{9})$/`) across both Add and Edit inquiry forms.
+- **Gated Offer Details Modal:** Integrated automated quotation details modal check whenever an inquiry is set to `Offer Sent` during creation or editing.
+- **Edit Modal Hardening:** Fixed Edit Inquiry status dropdown locking logic (`editingInquiryOriginalStatus`) and added inline `{formError}` alert banner rendering.
+
+### WBS & Project Roster Persistence
+- **Inquiry Management Team Linkage:** Dynamically resolved WBS phase `OWNER` fields from the project team roster assigned in Inquiry Management (`/api/projects/:inquiryId/team`), replacing generic seed text (`Design Lead`, `Store Manager`, `Mech Supervisor`, etc.) with real employee names.
+- **Persistent Project Context:** Updated WBS to persist active project selection in `localStorage` (`skytech_selected_project_id`). Navigating away from WBS and returning now automatically loads the active project without requiring re-selection.
+- **WBS Staff Assignment Modal:** Enhanced `AssignEmployeeModal.tsx` to fetch the project team roster and prioritize project roster members at the top of the list with a `[Project Roster]` badge.
+- **Excel Upload Modal Hook Fix:** Resolved React Rules of Hooks crash in `ExcelUploadModal.tsx` by moving `useRef` calls above early returns, and made the entire dropzone clickable.
+
+### Dashboard & Navigation Refinements
+- **Running Jobs on Main Dashboard:** Transferred field engineering site projects directly onto the main home dashboard (`page.tsx`) complete with interactive progress sliders (`0-100%`) for live site tracking.
+- **Sidebar Active Programme Filter:** Filtered the sidebar `ACTIVE PROGRAMME` project dropdown to strictly display confirmed, active inquiries (`status === 'Confirmed' && !holdStatus`), eliminating unconfirmed projects (`JOB-11`, `JOB-12`) from the list.
+- **Assigned Team Overlay Theme Alignment:** Styled the "Assigned Team Roster" modal overlay with SkyTech's signature dark navy (`#0B1728`) and crisp emerald theme (`#0E3B68` avatars, emerald badges, dark header).
+- **Confirmed Projects List Clean-up:** Removed software `⚠ Check` warning badge from confirmed project list items on the main dashboard.
+
+### Inventory Management & Tool Analytics
+- **Job-wise Summary Matrix Redesign:** Re-engineered the matrix view to display vertical Job columns based on user specifications.
+- **Empty Job Filter:** Filtered the Job-wise summary view to show only jobs with actual issued materials, completely removing empty job columns.
+- **Tool Inventory KPI Analytics:** Added 4 analytics cards (*Tools In Use*, *Site Issue Trips*, *Most Used Tool*, *Jobs Supplied*) below Low Stock Alerts.
+- **Interactive KPI Cards:** Configured stock valuation to render steadily on load, made *TOTAL STOCK ITEMS* switch tabs, and made *LOW STOCK ALERTS* smoothly scroll down to the alert table.
+
+### WBS & Employee Hub Streamlining
+- **WBS Duplicate Controls Cleanup:** Removed duplicate Expand All / Collapse All buttons from the WBS project selector bar while keeping the main Controls Bar buttons intact.
+- **Tab Consolidation:** Removed legacy standalone Tasks tab (fully replaced by WBS) and disabled the Running Jobs tab in Employee Management with clean redirects.
+
+### Employee Directory Administration
+- **Edit Employee Details:** Implemented `PUT /api/employees/:id` backend endpoint and added an admin-only Edit Employee modal (`employees/page.tsx`) to update employee name, email, designation, department, RBAC role, and status.
+
+---
 *Note: Order Management has been fully removed from the codebase. WBS serves as the single source of truth for project execution.*
+
 

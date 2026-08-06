@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, Search, Mail, Tag, UserCheck, UserX, UserMinus,
-  Briefcase, Layers, Activity, Plus, X, UserPlus, Sparkles
+  Briefcase, Layers, Activity, Plus, X, UserPlus, Sparkles, Pencil
 } from 'lucide-react';
 import { API_BASE_URL } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -60,6 +60,11 @@ export default function EmployeeDirectory() {
   const [newEmpPassword, setNewEmpPassword] = useState('password123'); // Default generated password
   const [newEmpIsAdmin, setNewEmpIsAdmin] = useState(false);
   const [newEmpPermissions, setNewEmpPermissions] = useState(DEFAULT_PERMISSIONS);
+
+  // Edit Employee Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [editError, setEditError] = useState('');
 
   const fetchEmployees = async () => {
     try {
@@ -148,6 +153,39 @@ export default function EmployeeDirectory() {
       }
     } catch (err) {
       console.error('Error adding employee:', err);
+    }
+  };
+
+  const handleEditEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEmployee) return;
+    setEditError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/employees/${editingEmployee.id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getCookie('token')}`
+        },
+        body: JSON.stringify({
+          name: editingEmployee.name,
+          email: editingEmployee.email,
+          designation: editingEmployee.designation,
+          department: editingEmployee.department,
+          role: editingEmployee.role,
+          status: editingEmployee.status
+        })
+      });
+      if (res.ok) {
+        await fetchEmployees();
+        setIsEditModalOpen(false);
+        setEditingEmployee(null);
+      } else {
+        const err = await res.json();
+        setEditError(err.error || 'Failed to update employee');
+      }
+    } catch (err) {
+      setEditError('Network error. Please try again.');
     }
   };
 
@@ -310,11 +348,142 @@ export default function EmployeeDirectory() {
                   Mark Active
                 </button>
               )}
+              {user?.isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => { setEditingEmployee({ ...emp }); setEditError(''); setIsEditModalOpen(true); }}
+                  className="flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold text-xs px-3 py-2 rounded-xl transition-all duration-200 cursor-pointer"
+                  title="Edit Employee"
+                >
+                  <Pencil size={13} />
+                </button>
+              )}
             </div>
 
           </div>
         ))}
       </div>
+
+      {/* EDIT EMPLOYEE MODAL */}
+      {isEditModalOpen && editingEmployee && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 sticky top-0 z-10">
+              <div className="flex items-center gap-2">
+                <Pencil size={18} className="text-blue-600" />
+                <h3 className="text-base font-bold text-slate-900">Edit Employee — {editingEmployee.name}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setIsEditModalOpen(false); setEditingEmployee(null); }}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditEmployee} className="p-6 space-y-4">
+
+              {editError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">
+                  {editError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingEmployee.name}
+                    onChange={(e) => setEditingEmployee({ ...editingEmployee, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={editingEmployee.email}
+                    onChange={(e) => setEditingEmployee({ ...editingEmployee, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Designation</label>
+                <input
+                  type="text"
+                  required
+                  value={editingEmployee.designation}
+                  onChange={(e) => setEditingEmployee({ ...editingEmployee, designation: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Department</label>
+                  <select
+                    value={editingEmployee.department}
+                    onChange={(e) => setEditingEmployee({ ...editingEmployee, department: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                  >
+                    {PREDEFINED_DEPARTMENTS.map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">RBAC Role</label>
+                  <select
+                    value={editingEmployee.role}
+                    onChange={(e) => setEditingEmployee({ ...editingEmployee, role: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                  >
+                    {['Admin', 'Manager', 'HR', 'Engineer', 'Supervisor', 'Operator'].map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Status</label>
+                <select
+                  value={editingEmployee.status}
+                  onChange={(e) => setEditingEmployee({ ...editingEmployee, status: e.target.value as any })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                >
+                  <option value="Active">Active</option>
+                  <option value="On Leave">On Leave</option>
+                  <option value="Suspended">Suspended</option>
+                </select>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setIsEditModalOpen(false); setEditingEmployee(null); }}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">

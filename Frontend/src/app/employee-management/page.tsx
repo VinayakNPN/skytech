@@ -151,57 +151,23 @@ const fallbackEmployees: Employee[] = [
   { id: 'EMP-015', name: 'Priya Sharma', email: 'priya.s@skytechswitchgear.com', department: 'Admin', designation: 'Office Staff', role: 'Admin', status: 'On Leave' }
 ];
 
-const fallbackAttendance: EmployeeAttendance[] = [
-  { id: 'ATT-001', employeeId: 'EMP-011', employeeName: 'Rajesh Kumar', designation: 'Site Engineer', date: '2026-07-19', clockIn: '9:02 AM', clockOut: null, status: 'Present' },
-  { id: 'ATT-002', employeeId: 'EMP-012', employeeName: 'Amit Mishra', designation: 'Electrician', date: '2026-07-19', clockIn: '9:15 AM', clockOut: null, status: 'Present' },
-  { id: 'ATT-003', employeeId: 'EMP-013', employeeName: 'Suresh Khanna', designation: 'Technician', date: '2026-07-19', clockIn: '9:48 AM', clockOut: null, status: 'Late' },
-  { id: 'ATT-004', employeeId: 'EMP-014', employeeName: 'Vijay Tiwari', designation: 'Helper', date: '2026-07-19', clockIn: null, clockOut: null, status: 'Absent' },
-  { id: 'ATT-005', employeeId: 'EMP-015', employeeName: 'Priya Sharma', designation: 'Office Staff', date: '2026-07-19', clockIn: null, clockOut: null, status: 'On Leave' }
-];
-
-const fallbackTasks: EmployeeTask[] = [
-  { id: 'EMP-TSK-001', title: 'Panel wiring — Rudrapur', assignedTo: 'Rajesh Kumar', dueDate: '20 Jun', status: 'In Progress' },
-  { id: 'EMP-TSK-002', title: 'HMI commissioning check', assignedTo: 'Amit Mishra', dueDate: '22 Jun', status: 'Assigned' },
-  { id: 'EMP-TSK-003', title: 'Load testing — Kanpur site', assignedTo: 'Suresh Khanna', dueDate: '17 Jun', status: 'Done' },
-  { id: 'EMP-TSK-004', title: 'Cable tray installation', assignedTo: 'Vijay Tiwari', dueDate: '16 Jun', status: 'Overdue' }
-];
-
-const fallbackJobs: RunningJob[] = [
-  { id: 'JOB-001', title: 'Britannia Rudrapur — Line 4', description: 'PLC/HMI Commissioning', progress: 85, status: 'Active' },
-  { id: 'JOB-002', title: 'OPF Kanpur — HT Panel', description: '11KV VCB installation', progress: 50, status: 'In Progress' },
-  { id: 'JOB-003', title: 'Flour Mill Kolkata — Sensors', description: 'Instrumentation survey', progress: 20, status: 'Assigned' }
-];
-
-const fallbackLeaves: LeaveApplication[] = [
-  { id: 'LV-001', employeeId: 'EMP-009', employeeName: 'Sunil Gavaskar', fromDate: '2026-07-18', toDate: '2026-07-20', leaveType: 'Full Day', reason: 'Family function at hometown.', status: 'Approved' },
-  { id: 'LV-002', employeeId: 'EMP-015', employeeName: 'Priya Sharma', fromDate: '2026-07-19', toDate: '2026-07-22', leaveType: 'Full Day', reason: 'Severe viral fever.', status: 'Approved' },
-  { id: 'LV-004', employeeId: 'EMP-003', employeeName: 'Amit Kumar', fromDate: '2026-07-24', toDate: '2026-07-26', leaveType: 'Half Day - AM', halfDayTime: '09:00', reason: 'Daughter\'s school admission.', status: 'Pending', routedToRole: 'Admin' }
-];
-
-const fallbackSalary: SalarySlip[] = [
-  { id: 'PAY-001', employeeId: 'EMP-011', employeeName: 'Rajesh Kumar', month: 'June 2026', basic: 32000, hra: 12000, allowance: 6000, deductions: 2500, netPay: 47500, status: 'Paid' },
-  { id: 'PAY-002', employeeId: 'EMP-012', employeeName: 'Amit Mishra', month: 'June 2026', basic: 22000, hra: 8000, allowance: 4000, deductions: 1800, netPay: 32200, status: 'Paid' },
-  { id: 'PAY-003', employeeId: 'EMP-013', employeeName: 'Suresh Khanna', month: 'June 2026', basic: 24000, hra: 9000, allowance: 4500, deductions: 2000, netPay: 35500, status: 'Paid' }
-];
-
-const fallbackVisits: VisitReport[] = [
-  { id: 'VIS-001', title: 'Commissioning Visit', client: 'Britannia Industries', location: 'Rudrapur', engineer: 'Rajesh Kumar', date: '2026-07-15', status: 'Completed', notes: 'Completed the panel wiring and busbar alignment. Pre-commissioning testing completed successfully.' },
-  { id: 'VIS-002', title: 'Maintenance & Troubleshooting', client: 'Tata Power Substation', location: 'Kalyan', engineer: 'Sunil Gavaskar', date: '2026-07-16', status: 'Completed', notes: 'Replaced faulty protection relay and checked wiring insulation logs. System is stable.' },
-  { id: 'VIS-003', title: 'Installation Supervision', client: 'OPF Mills', location: 'Kanpur', engineer: 'Suresh Khanna', date: '2026-07-18', status: 'In Progress', notes: 'Currently supervising VCB panel alignment and control cables laying.' },
-  { id: 'VIS-004', title: 'Site Inspection survey', client: 'Kolkata Flour Mill', location: 'Kolkata', engineer: 'Harpreet Singh', date: '2026-07-22', status: 'Scheduled', notes: 'Scheduled for sensor fitting audit and cable tray layout measurement.' }
-];
-
+const fallbackAttendance: EmployeeAttendance[] = [];
+const fallbackTasks: EmployeeTask[] = [];
+const fallbackJobs: RunningJob[] = [];
+const fallbackLeaves: LeaveApplication[] = [];
+const fallbackSalary: SalarySlip[] = [];
+const fallbackVisits: VisitReport[] = [];
 function EmployeeManagementContent() {
   const { user: authUser, logout } = useAuth();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'attendance' | 'visits' | 'leave' | 'salary'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'attendance' | 'visits' | 'leave'>('dashboard');
   const [loading, setLoading] = useState(true);
   const [backendOnline, setBackendOnline] = useState(false);
 
   useEffect(() => {
-    if (tabParam && ['dashboard', 'attendance', 'visits', 'leave', 'salary'].includes(tabParam)) {
+    if (tabParam && ['dashboard', 'attendance', 'visits', 'leave'].includes(tabParam)) {
       setActiveTab(tabParam as any);
     } else if (!tabParam) {
       setActiveTab('dashboard');
@@ -1653,116 +1619,7 @@ function EmployeeManagementContent() {
                 </div>
               )}
 
-              {/* ========================================================================= */}
-              {/* TAB 6: SALARY / PAYROLL VIEW                                              */}
-              {/* ========================================================================= */}
-              {activeTab === 'salary' && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-                    <h2 className="text-xl font-bold text-slate-900">Payroll & Payslips</h2>
-                    <div className="text-xs bg-white border px-3 py-1.5 rounded-lg shadow-sm font-semibold text-slate-600">
-                      Period: June 2026
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Payslips Table */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm lg:col-span-2 text-left space-y-4">
-                      <h3 className="font-bold text-sm text-slate-800 border-b pb-2">Payslip Directories</h3>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs text-left">
-                          <thead>
-                            <tr className="border-b border-slate-100 text-slate-400 font-bold">
-                              <th className="py-2.5">Employee Name</th>
-                              <th className="py-2.5">Net Pay</th>
-                              <th className="py-2.5">Status</th>
-                              <th className="py-2.5 text-right">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {salarySlips.map((slip) => (
-                              <tr key={slip.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                                <td className="py-3 font-semibold text-slate-800">{slip.employeeName}</td>
-                                <td className="py-3 font-bold text-slate-700">₹{slip.netPay.toLocaleString('en-IN')}</td>
-                                <td className="py-3">
-                                  <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold px-2 py-0.5 rounded text-[9px]">
-                                    {slip.status}
-                                  </span>
-                                </td>
-                                <td className="py-3 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDownloadPayslip(slip)}
-                                    className="inline-flex items-center gap-1 bg-blue-600 text-white font-bold text-[10px] px-2.5 py-1 rounded shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
-                                  >
-                                    <Download size={10} />
-                                    Download
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    {/* Salary slips details */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-left flex flex-col justify-between space-y-4">
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-800 border-b pb-2 mb-4">Earnings Breakdown</h3>
-                        {selectedPaySlip ? (
-                          <div className="space-y-4 font-semibold text-xs">
-                            <div className="flex justify-between border-b pb-1 text-slate-400">
-                              <span>Details For</span>
-                              <span className="text-slate-800">{selectedPaySlip.employeeName}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-slate-500">Basic Salary</span>
-                              <span className="text-slate-800">₹{selectedPaySlip.basic.toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-slate-500">HRA Allowance</span>
-                              <span className="text-slate-800">₹{selectedPaySlip.hra.toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-slate-500">Special Allowances</span>
-                              <span className="text-slate-800">₹{selectedPaySlip.allowance.toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="flex justify-between text-rose-600">
-                              <span>Deductions (PF + Taxes)</span>
-                              <span>-₹{selectedPaySlip.deductions.toLocaleString('en-IN')}</span>
-                            </div>
-                            <div className="flex justify-between text-sm border-t border-slate-200 pt-3 font-bold text-slate-800">
-                              <span>Net Payable</span>
-                              <span className="text-blue-600">₹{selectedPaySlip.netPay.toLocaleString('en-IN')}</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-slate-400 font-bold text-xs text-center py-12">
-                            Select download on any slip to load breakdown details.
-                          </div>
-                        )}
-                      </div>
-                      
-                      {selectedPaySlip && (
-                        <div className="pt-4 border-t border-slate-100 flex justify-center">
-                          {downloadingSlip ? (
-                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 animate-pulse">
-                              <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
-                              Compiling Payslip PDF...
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-bold bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-lg w-full justify-center">
-                              <CheckCircle2 size={16} />
-                              Payslip Downloaded successfully!
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* ========================================================================= */}
               {/* TAB 7: RUNNING JOBS VIEW                                                  */}

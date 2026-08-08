@@ -179,7 +179,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       title: 'HR',
       items: [
         ...(can('employeeHub', 'read') ? [{ id: 'leave', name: 'Leave', href: '/employee-management?tab=leave', icon: Calendar }] : []),
-        ...(can('employeeHub', 'read') ? [{ id: 'salary', name: 'Salary', href: '/employee-management?tab=salary', icon: DollarSign }] : []),
+
         // COMMENTED OUT — Running Jobs shown on main Dashboard instead. Uncomment to restore as sidebar link.
         // ...(can('employeeHub', 'read') ? [{ id: 'jobs', name: 'Running Jobs', href: '/employee-management?tab=jobs', icon: TrendingUp }] : []),
       ]
@@ -240,29 +240,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
             </button>
           </div>
 
-          {/* ACTIVE PROGRAMME Dropdown Select Box (Reference Image 2) */}
-          <div className="px-3 pt-3 pb-1 flex-shrink-0">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 block mb-1.5">
-              ACTIVE PROGRAMME
-            </span>
-            <div className="relative">
-              <select
-                value={selectedProjectId}
-                onChange={(e) => handleSelectProject(e.target.value)}
-                className="w-full bg-[#06101D] border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-slate-200 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer appearance-none pr-8"
-              >
-                <option value="ALL">Select Project...</option>
-                {projectsList.map((p) => (
-                  <option key={p.id} value={p.inquiryCode || p.id} className="bg-[#0B1728] text-white">
-                    {p.inquiryCode || p.id} - {p.client}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3 top-2.5 pointer-events-none text-slate-400">
-                <ChevronLeft size={14} className="-rotate-90" />
-              </div>
-            </div>
-          </div>
+
 
           {/* Quick Search Input (Matching Reference Design) */}
           <div className="px-3 pt-2 pb-2 flex-shrink-0">

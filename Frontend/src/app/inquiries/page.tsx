@@ -117,6 +117,15 @@ export default function InquiriesPage() {
 
   useEffect(() => {
     fetchInquiries();
+    
+    // Check for initial filter from URL
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const initialFilter = params.get('filter');
+      if (initialFilter) {
+        setStatusFilter(initialFilter);
+      }
+    }
   }, []);
 
   // Highlight an inquiry row for 3 seconds then clear

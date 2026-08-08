@@ -113,7 +113,9 @@ router.post('/tasks', validateBody(createWBSTaskSchema), async (req, res) => {
         planHours: Number(planHours) || 8,
         actualHours: actualHours,
         status: status || 'NOT STARTED',
-        progress: progress
+        progress: progress,
+        // @ts-ignore
+        blockers: req.body.blockers || null
       }
     });
 
@@ -141,7 +143,9 @@ router.put('/tasks/:id', async (req, res) => {
         ...(planHours !== undefined && { planHours: Number(planHours) }),
         ...(actualHours !== undefined && { actualHours: Number(actualHours) }),
         ...(status && { status }),
-        ...(progress !== undefined && { progress: Number(progress) })
+        ...(progress !== undefined && { progress: Number(progress) }),
+        // @ts-ignore
+        ...(req.body.blockers !== undefined && { blockers: req.body.blockers })
       }
     });
 

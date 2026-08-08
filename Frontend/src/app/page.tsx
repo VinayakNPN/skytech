@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import ProjectDropdown from '@/components/ProjectDropdown';
 import { API_BASE_URL } from '@/config/api';
+import { useRouter } from 'next/navigation';
 
 // Circular progress component
 const CircularProgress = ({ percentage, strokeColor }: { percentage: number; strokeColor: string }) => {
@@ -422,20 +423,19 @@ export default function Dashboard() {
 
   // Active Project Selector State (R1)
   const [confirmedProjects, setConfirmedProjects] = useState<any[]>(DEFAULT_CONFIRMED_PROJECTS);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('JOB-01');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');
+  const [allInquiries, setAllInquiries] = useState<any[]>([]);
+  const [allTasks, setAllTasks] = useState<any[]>([]);
+  const router = useRouter();
 
   const [teamOverlayOpen, setTeamOverlayOpen] = useState(false);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
   const [highlightedPhaseId, setHighlightedPhaseId] = useState<string | null>(null);
   const pipelineRef = useRef<HTMLDivElement>(null);
+  const [projectTeamCount, setProjectTeamCount] = useState<number>(0);
 
-  // Running Jobs (Site Projects) State
-  const [runningSiteJobs, setRunningSiteJobs] = useState<any[]>([
-    { id: 'JOB-001', title: 'Britannia Rudrapur — Line 4', description: 'PLC/HMI Commissioning', progress: 85, status: 'Active' },
-    { id: 'JOB-002', title: 'OPF Kanpur — HT Panel', description: '11KV VCB installation', progress: 50, status: 'In Progress' },
-    { id: 'JOB-003', title: 'Flour Mill Kolkata — Sensors', description: 'Instrumentation survey', progress: 20, status: 'Assigned' }
-  ]);
+  const [runningSiteJobs, setRunningSiteJobs] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchSiteJobs = async () => {
@@ -477,10 +477,11 @@ export default function Dashboard() {
         const res = await fetch(`${API_BASE_URL}/api/inquiries`);
         if (res.ok) {
           const data = await res.json();
+          setAllInquiries(data);
           const confirmed = data.filter((i: any) => i.status === 'Confirmed' && !i.holdStatus);
           if (confirmed.length > 0) {
             setConfirmedProjects(confirmed);
-            setSelectedProjectId(prev => (prev && confirmed.some((p: any) => (p.inquiryCode || p.id) === prev) ? prev : (confirmed[0].inquiryCode || confirmed[0].id)));
+            setSelectedProjectId(prev => (prev === 'ALL' ? 'ALL' : (prev && confirmed.some((p: any) => (p.inquiryCode || p.id) === prev) ? prev : (confirmed[0].inquiryCode || confirmed[0].id))));
             return;
           }
         }
@@ -513,6 +514,14 @@ export default function Dashboard() {
   // Dynamically adapt department phases & checklist tasks to selectedProjectId
   useEffect(() => {
     if (!selectedProjectId) return;
+    
+    if (selectedProjectId === 'ALL') {
+      fetch(`${API_BASE_URL}/api/wbs`).then(res => res.json()).then(data => {
+         const tasks = data.flatMap((p: any) => p.tasks.map((t: any) => ({ ...t, phaseName: p.name })));
+         setAllTasks(tasks);
+      }).catch(console.error);
+      return;
+    }
 
     // Use inquiryCode if we can find it, so database UUIDs correctly map to our INQ_XX profiles
     const proj = confirmedProjects.find(p => p.id === selectedProjectId || p.inquiryCode === selectedProjectId);
@@ -538,7 +547,25 @@ export default function Dashboard() {
       setSelectedPhaseId(getNextActivePhaseId(newPhases));
     };
 
+    const fetchProjectTeamCount = async () => {
+      try {
+        let res = await fetch(`${API_BASE_URL}/api/projects/${lookupCode}/team`);
+        if (!res.ok && proj?.id) {
+          res = await fetch(`${API_BASE_URL}/api/projects/${proj.id}/team`);
+        }
+        if (res.ok) {
+          const data = await res.json();
+          setProjectTeamCount(Array.isArray(data) ? data.length : 0);
+        } else {
+          setProjectTeamCount(0);
+        }
+      } catch (err) {
+        setProjectTeamCount(0);
+      }
+    };
+
     fetchProjectTasks();
+    fetchProjectTeamCount();
   }, [selectedProjectId, confirmedProjects]);
 
   const calendarRef = useRef<HTMLDivElement>(null);
@@ -646,10 +673,9 @@ export default function Dashboard() {
     const activeIncompletePhase = phases.find(p => p.tasks.some(t => !t.completed)) || phases[phases.length - 1];
 
     // Project-seeded (deterministic) staff number so it varies per project but stays stable
-    const seed = selectedProjectId.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-    const assignedStaff = 4 + (seed % 5);          // 4–8 staff per project
-    const presentStaff = Math.max(1, assignedStaff - (seed % 2)); // 0–1 absent
-    const attendancePct = Math.round((presentStaff / assignedStaff) * 100);
+    const assignedStaff = projectTeamCount;
+    const presentStaff = projectTeamCount;
+    const attendancePct = projectTeamCount > 0 ? 100 : 0;
 
     // Phases still active (in progress or not started)
     const activePhaseCount = deptsInProgress + deptsNotStarted;
@@ -669,7 +695,7 @@ export default function Dashboard() {
       activePhaseCount,
       currentPhase: activeIncompletePhase.shortName
     };
-  }, [phases, selectedProjectId]);
+  }, [phases, selectedProjectId, projectTeamCount]);
 
   const stats = projectStats;
 
@@ -726,14 +752,14 @@ export default function Dashboard() {
     if (timeHorizon === '1w') weeksLimit = 1;
     if (timeHorizon === '8w') weeksLimit = 8;
 
-    const filtered = INQUIRY_DATABASE.filter(item => item.weeksAgo <= weeksLimit);
+    const filtered = allInquiries.filter(item => (item.weeksAgo || 1) <= weeksLimit);
 
-    let inquiriesCount = timeHorizon === '1w' ? 8 : (timeHorizon === '4w' ? 28 : 54);
-    let offersCount = timeHorizon === '1w' ? 7 : (timeHorizon === '4w' ? 24 : 46);
-    let confirmedCount = timeHorizon === '1w' ? 5 : (timeHorizon === '4w' ? 18 : 36);
-    let unconfirmedCount = timeHorizon === '1w' ? 2 : (timeHorizon === '4w' ? 6 : 10);
+    const inquiriesCount = allInquiries.length;
+    const offersCount = allInquiries.filter(i => i.status === 'Offer Sent' || i.status === 'Confirmed').length;
+    const confirmedCount = allInquiries.filter(i => i.status === 'Confirmed').length;
+    const unconfirmedCount = allInquiries.filter(i => i.status === 'Unconfirmed' || i.status === 'Inquiry Received').length;
     
-    const winRate = Math.round((confirmedCount / offersCount) * 100);
+    const winRate = offersCount > 0 ? Math.round((confirmedCount / offersCount) * 100) : 0;
 
     return {
       filteredList: filtered,
@@ -753,12 +779,34 @@ export default function Dashboard() {
     item.status.toLowerCase().includes(inquirySearch.toLowerCase())
   );
 
+  const updateBlocker = async (taskId: string, newBlocker: string) => {
+    setAllTasks(prev => prev.map(t => t.id === taskId ? { ...t, blockers: newBlocker } : t));
+    try {
+      await fetch(`${API_BASE_URL}/api/wbs/tasks/${taskId}`, {
+         method: 'PUT',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ blockers: newBlocker })
+      });
+    } catch (e) { console.error(e); }
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
-        {/* Left side: History warning if viewing past dates */}
-        <div className="flex flex-col gap-2">
+        {/* Left side: Project Dropdown and History warning if viewing past dates */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <ProjectDropdown 
+            projects={confirmedProjects}
+            selectedProjectId={selectedProjectId}
+            onSelectProject={(id) => {
+              setSelectedProjectId(id);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('skytech_selected_project_id', id);
+                window.dispatchEvent(new CustomEvent('projectChanged', { detail: id }));
+              }
+            }}
+          />
           {!isToday && (
             <div className="flex items-center gap-2 bg-amber-50 text-amber-800 border border-amber-200/80 px-3.5 py-1.5 rounded-xl text-xs font-semibold animate-in fade-in">
               <Clock size={14} className="text-amber-600" />
@@ -898,6 +946,7 @@ export default function Dashboard() {
 
 
       {/* Project List Bar */}
+      {selectedProjectId !== 'ALL' && (
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4">
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Confirmed Projects</span>
@@ -956,8 +1005,102 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+      )}
+
+      {selectedProjectId === 'ALL' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 animate-fade-in">
+          <div onClick={() => router.push('/inquiries?filter=ALL')} className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">1. INQUIRIES RECEIVED</span>
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform"><Layers size={18} /></div>
+            </div>
+            <div className="mt-4 text-2xl font-extrabold text-slate-900">{inquiryStats.inquiriesCount}</div>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">Total client lead requests received</p>
+          </div>
+          <div onClick={() => router.push('/inquiries?filter=Offer+Sent')} className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all group">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-extrabold text-indigo-700 uppercase tracking-wider">2. OFFERS SENT</span>
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform"><Send size={18} /></div>
+            </div>
+            <div className="mt-4 text-2xl font-extrabold text-slate-900">{inquiryStats.offersCount}</div>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">Quotation proposals sent to clients</p>
+          </div>
+          <div onClick={() => router.push('/inquiries?filter=Confirmed')} className="bg-emerald-50/40 p-5 rounded-2xl border border-emerald-200/90 shadow-xs flex flex-col justify-between cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all group">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider">3. CONFIRMED ORDERS</span>
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform"><CheckCircle size={18} /></div>
+            </div>
+            <div className="mt-4 text-2xl font-extrabold text-slate-900">{inquiryStats.confirmedCount}</div>
+            <p className="text-[11px] text-emerald-700 font-medium mt-1">Confirmed orders in manufacturing</p>
+          </div>
+          <div onClick={() => router.push('/inquiries?filter=Unconfirmed')} className="bg-amber-50/40 p-5 rounded-2xl border border-amber-200/90 shadow-xs flex flex-col justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all group">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider">4. UNCONFIRMED / PENDING</span>
+              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform"><Clock size={18} /></div>
+            </div>
+            <div className="mt-4 text-2xl font-extrabold text-slate-900">{inquiryStats.unconfirmedCount}</div>
+            <p className="text-[11px] text-amber-700 font-medium mt-1">Pending client confirmation / PO</p>
+          </div>
+        </div>
+      )}
+
+      {selectedProjectId === 'ALL' && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 mb-6 space-y-4 animate-fade-in">
+          <h2 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">Confirmed Projects Master List</h2>
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#0B1728] text-slate-300 text-[11px] font-bold uppercase tracking-wider border-b border-slate-800">
+                  <th className="py-3 px-4 w-1/4">PROJECT</th>
+                  <th className="py-3 px-4 w-40">ACTIVE PHASE</th>
+                  <th className="py-3 px-4 w-48">CURRENT TASK</th>
+                  <th className="py-3 px-4 w-32">OWNER</th>
+                  <th className="py-3 px-4">BLOCKERS / ISSUES</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs font-medium bg-white">
+                {confirmedProjects.map(proj => {
+                  const pid = proj.inquiryCode || proj.id;
+                  const activeTask = allTasks.find(t => t.inquiryId === proj.id && t.status === 'IN PROGRESS') || allTasks.find(t => t.inquiryId === proj.id && t.status === 'NOT STARTED');
+                  const phaseName = activeTask?.phaseName || 'N/A';
+                  return (
+                    <tr key={proj.id} className="hover:bg-slate-50/80 text-slate-800 transition-colors">
+                      <td className="py-3 px-4">
+                        <span className="font-bold block text-blue-600">[{pid}]</span>
+                        <span className="text-[11px] font-semibold">{proj.project}</span>
+                      </td>
+                      <td className="py-3 px-4 font-semibold">{activeTask ? phaseName : '-'}</td>
+                      <td className="py-3 px-4">{activeTask?.name || 'Complete'}</td>
+                      <td className="py-3 px-4">{activeTask?.owner || '-'}</td>
+                      <td className="py-3 px-4">
+                        {activeTask ? (
+                          <input 
+                            type="text" 
+                            className="w-full px-2 py-1.5 border border-slate-200 hover:border-slate-300 rounded-lg text-[11px] font-semibold focus:ring-2 focus:ring-red-400 focus:border-red-400 focus:outline-none placeholder:text-slate-300 transition-all text-red-600" 
+                            placeholder="Add blockers/issues..."
+                            value={activeTask.blockers || ''}
+                            onChange={(e) => updateBlocker(activeTask.id, e.target.value)}
+                          />
+                        ) : (
+                          <span className="text-slate-300 italic">N/A</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {confirmedProjects.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-6 text-center text-slate-400">No confirmed projects found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* KPI Stats — 5 Cards */}
+      {selectedProjectId !== 'ALL' && (
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
       
         {/* Card 1: OVERALL PROGRESS — clickable → /wbs */}
@@ -1077,8 +1220,10 @@ export default function Dashboard() {
         </div>
       
       </div>
+      )}
 
       {/* NEW SECTION: Production Flow Overview & Tasks Completed by Phase (From Image 1 & Image 2) */}
+      {selectedProjectId !== 'ALL' && (
       <div ref={pipelineRef} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-6">
         
         {/* Section Header */}
@@ -1289,6 +1434,7 @@ export default function Dashboard() {
         </div>
 
       </div>
+      )}
 
       {/* RUNNING JOBS — SITE PROJECTS SECTION */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
@@ -1346,6 +1492,7 @@ export default function Dashboard() {
       </div>
 
       {/* COMPACT CONNECTED INQUIRY SUMMARY BAR (Linked to /inquiries) */}
+      {selectedProjectId !== 'ALL' && (
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold">
@@ -1368,12 +1515,12 @@ export default function Dashboard() {
         <div className="flex items-center gap-6">
           <div className="text-center sm:text-right">
             <span className="text-xs font-semibold text-slate-400 block uppercase tracking-wider text-[10px]">Total Leads</span>
-            <span className="text-base font-extrabold text-slate-900 font-mono">10 Live Leads</span>
+            <span className="text-base font-extrabold text-slate-900 font-mono">{inquiryStats.inquiriesCount} Live Leads</span>
           </div>
 
           <div className="text-center sm:text-right border-l border-slate-100 pl-6">
             <span className="text-xs font-semibold text-slate-400 block uppercase tracking-wider text-[10px]">Confirmed Rate</span>
-            <span className="text-base font-extrabold text-emerald-600 font-mono">60% Win Rate</span>
+            <span className="text-base font-extrabold text-emerald-600 font-mono">{inquiryStats.winRate}% Win Rate</span>
           </div>
 
           <a
@@ -1385,6 +1532,7 @@ export default function Dashboard() {
           </a>
         </div>
       </div>
+      )}
 
       {/* Assigned Team Overlay Modal */}
       {teamOverlayOpen && (

@@ -88,6 +88,57 @@ This document tracks daily progress, commits, and major milestones achieved duri
 - **Edit Employee Details:** Implemented `PUT /api/employees/:id` backend endpoint and added an admin-only Edit Employee modal (`employees/page.tsx`) to update employee name, email, designation, department, RBAC role, and status.
 
 ---
+
+## August 12, 2026
+
+### API & Authentication Fixes
+- **Employee Management Fetch URL Fix:** Fixed critical bug where ~10 `fetch()` calls in `employee-management/page.tsx` used single-quoted template strings (`'${API_BASE_URL}/...'`), preventing string interpolation and breaking backend communication. Converted all fetch calls to proper template literals.
+
+### Global Toast System & App Loading
+- **Toast Notification System:** Built `Toast.tsx` (`ToastProvider` & `useToast` hook) with dark navy/emerald styling, auto-dismiss, and slide-in animations. Replaced blocking browser `alert()` popups across the app with clean, non-blocking toast notifications. Wrapped `DashboardLayout` with `ToastProvider` for app-wide availability.
+- **App Loading Skeleton:** Added `loading.tsx` to `Frontend/src/app` with animated dot-pulse indicator for instant loading feedback.
+
+### Calendar Progress History (localStorage)
+- **Historical Date Snapshots:** Implemented local history snapshots for project progress on the main dashboard (`page.tsx`). Toggling task completion on any date automatically saves a dated snapshot (`skytech_progress_history_${projectId}_${dateStr}`).
+- **Snapshot Navigation Banner:** Clicking a past date on the calendar loads that day's saved progress state and displays a prominent *"Viewing Historical Progress Snapshot"* banner with a single-click *"Return to Today"* button.
+
+### WBS Enhancements & Backend Notes Integration
+- **WBS Notes & Error/Issue Tracking:** Added `notes` and `errorFlag` optional columns to the `WBSTask` Prisma model and executed database schema sync (`prisma db push`).
+- **WBS Table Inline Editing:** Added `NOTES` and `ERROR / ISSUE` columns to the WBS hierarchical tree table with inline blur-to-save API persistence, as well as input fields in the Edit Task modal.
+- **Dashboard Notes Sync:** Renamed Card 5 on the main dashboard pipeline from *"REMARK"* to *"NOTES"* and added auto-saving with instant toast feedback (`✓ Note saved for [Dept]`).
+
+### Employee Leave Balances & HR Controls
+- **Per-Employee Leave Balances:** Added `casualLeaveBalance`, `sickLeaveBalance`, and `privilegeLeaveBalance` fields to the `Employee` model and built `PATCH /api/employees/:id/leave-balance` backend route.
+- **Dynamic Leave UI & HR Editing:** Updated Leave Management UI to show live per-employee leave balances based on selected employee context, and added an HR-editable inline control for Casual Leave (CL) balances. Added automated balance deduction and toast alerts upon leave approval.
+
+### Inventory Toolkit & Excel Integration
+- **Excel Toolkit Template Generator:** Integrated `XLSX` template generator in `inventory/page.tsx` with a *"Template"* button to download `SkyTech_Inventory_Toolkit_Template.xlsx` pre-populated with sample sheets (*Job Master*, *Item Master*, *Stock IN*, *Stock OUT*).
+- **Import Excel Button:** Placed a prominent *"Import Excel"* button in the Tool Inventory & Site Visit Analytics header opening the dropzone upload modal.
+- **Upload Error Messaging:** Updated `ExcelUploadModal.tsx` error handler to provide clear diagnostic feedback when the backend API server is unreachable.
+
+---
+
+## August 13, 2026
+
+### Employee Management, Leave Deduction & Site Visits
+- **Leave Category Deduction Fix (CL / SL / PL):** Fixed leave deduction system so approved leaves deduct strictly from the selected category (`casualLeaveBalance` for CL, `sickLeaveBalance` for SL, `privilegeLeaveBalance` for PL). Added local storage and payload hydration (`leaveCategory`) ensuring categories persist across backend syncs and page reloads.
+- **Site Visit Log Toast Notification:** Removed double-toast alerts on site visit report logging. Unified online and offline fallback flows into a single clean success toast (`✓ Site visit logged successfully`).
+
+### Dashboard Notes & Notification System
+- **Clean Notes Card Initialization:** Resolved issue where unedited projects displayed static mock remarks in the Dashboard NOTES card. Projects with no manual notes now initialize with clean empty text boxes and explicit placeholders.
+- **Client-Tailored Activity Notifications:** Replaced technical developer toast text with client-friendly activity log notifications (`📝 New note added for [JOB-01] Electrical: "Control wiring..."`) and seeded initial bell dropdown items with client-centric events.
+
+### WBS Table Layout & Team Roster
+- **100% Non-Scrollable Table Layout:** Re-architected WBS tree table column widths to proportional percentage allocations (`5% WBS`, `24% Task Name`, `7% Phase`, `12% Owner`, `7% Plan/Act`, `9% Status`, `11% Progress`, `9% Notes`, `11% Issue`, `9% Actions`), providing even horizontal breathing room across all columns without requiring horizontal scrollbars.
+- **Table & Modal Typography Polish:** Unbolded `OWNER` and `PLAN/ACT` table cells (`font-normal`) and unbolded text inside the "Assigned Team Roster" modal for clean, spacious, and un-congested visual presentation.
+- **Project-Scoped Team Counter:** Scoped Assigned Members counter and team overlay modal strictly to the active project ID (`selectedProjectId`), accurately displaying `0 Members on project` for projects without team assignments.
+
+### Inventory & UI Enhancements
+- **Technician Badge Typography:** Upgraded "Issued To" technician text in Job-wise Material Summary to high-contrast `text-xs font-bold` badges.
+- **Interactive Refresh Feedback:** Added an animated spinning icon state and toast confirmation (**`✓ System metrics refreshed`**) to the Inventory Refresh Data button.
+
+---
 *Note: Order Management has been fully removed from the codebase. WBS serves as the single source of truth for project execution.*
+
 
 

@@ -17,10 +17,14 @@ import {
   Upload,
   CheckCircle,
   Wrench,
-  BarChart3
+  BarChart3,
+  Download,
+  RefreshCw
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { API_BASE_URL, getAuthHeaders } from "@/config/api";
 import { ExcelUploadModal } from "@/components/ExcelUploadModal";
+import { useToast } from "@/components/Toast";
 
 interface StockItem {
   id: string;
@@ -72,7 +76,9 @@ interface StockIssue {
 }
 
 export default function InventoryPage() {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<"dashboard" | "items" | "stockIn" | "stockOut" | "summary">("dashboard");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Data states
   const [stats, setStats] = useState<any>(null);
@@ -158,6 +164,61 @@ export default function InventoryPage() {
     }, 30);
     return () => clearInterval(timer);
   }, [stats?.totalValue]);
+
+  const handleDownloadTemplate = () => {
+    const wb = XLSX.utils.book_new();
+
+    // ── Sheet 1: Job Master ──────────────────────────────────────────
+    // These jobs must be added FIRST. Stock OUT entries reference Job No here.
+    const jobMaster = [
+      { "Job No": "JOB-01", "Client Name": "Reliance Green Energy", "Location": "Jamnagar Site", "Status": "Running" },
+      { "Job No": "JOB-02", "Client Name": "Tata Steel Infra", "Location": "Jamshedpur Site", "Status": "Running" },
+      { "Job No": "JOB-03", "Client Name": "Adani Solar Power", "Location": "Ahmedabad Site", "Status": "Running" },
+      { "Job No": "JOB-04", "Client Name": "L&T Construction", "Location": "Mumbai Site", "Status": "Completed" },
+    ];
+
+    // ── Sheet 2: Item Master ─────────────────────────────────────────
+    // These items must be added BEFORE Stock IN/OUT entries.
+    const itemMaster = [
+      { "Item Code": "MCB-001", "Description": "Single Pole 16A MCB C-Curve", "Make": "Schneider Electric", "Part No": "A9F74116", "Category": "Switchgear Parts", "Unit": "Nos", "Opening Stock": 100, "Min Stock Level": 20, "Unit Rate": 250, "Location Rack": "Rack A-01" },
+      { "Item Code": "MCB-002", "Description": "Double Pole 32A MCB", "Make": "ABB", "Part No": "S202-C32", "Category": "Switchgear Parts", "Unit": "Nos", "Opening Stock": 60, "Min Stock Level": 15, "Unit Rate": 480, "Location Rack": "Rack A-02" },
+      { "Item Code": "TOOL-001", "Description": "HV Dielectric Insulation Tester 5kV", "Make": "Megger", "Part No": "MIT515", "Category": "Testing Equipment", "Unit": "Nos", "Opening Stock": 5, "Min Stock Level": 1, "Unit Rate": 45000, "Location Rack": "Tool Cabinet T-2" },
+      { "Item Code": "TOOL-002", "Description": "Digital Clamp Meter 1000A", "Make": "Fluke", "Part No": "376FC", "Category": "Testing Equipment", "Unit": "Nos", "Opening Stock": 8, "Min Stock Level": 2, "Unit Rate": 18000, "Location Rack": "Tool Cabinet T-1" },
+      { "Item Code": "TOOL-003", "Description": "Torque Wrench Set 20-200 Nm", "Make": "Gedore", "Part No": "GD-2641", "Category": "Hand Tools", "Unit": "Set", "Opening Stock": 4, "Min Stock Level": 1, "Unit Rate": 8500, "Location Rack": "Shelf B-03" },
+      { "Item Code": "CABLE-001", "Description": "3.5 Core 50 sqmm Armoured Cable", "Make": "Polycab", "Part No": "PC-AL350", "Category": "Cables", "Unit": "Meters", "Opening Stock": 500, "Min Stock Level": 100, "Unit Rate": 185, "Location Rack": "Cable Drum D-1" },
+    ];
+
+    // ── Sheet 3: Stock IN ────────────────────────────────────────────
+    const stockIn = [
+      { "Receipt No": "GRN-2026-001", "Item Code": "MCB-001", "Qty In": 50, "Supplier": "L&T Electricals", "Invoice No": "INV-8821", "Received By": "Rajesh Mehta", "Remarks": "Regular stock replenishment" },
+      { "Receipt No": "GRN-2026-002", "Item Code": "TOOL-001", "Qty In": 2, "Supplier": "Megger India", "Invoice No": "INV-9042", "Received By": "Sunil Gavaskar", "Remarks": "New procurement for Testing dept" },
+      { "Receipt No": "GRN-2026-003", "Item Code": "CABLE-001", "Qty In": 200, "Supplier": "Polycab Wires", "Invoice No": "INV-7733", "Received By": "Rajesh Mehta", "Remarks": "Job JOB-01 cable supply" },
+      { "Receipt No": "GRN-2026-004", "Item Code": "TOOL-002", "Qty In": 3, "Supplier": "Fluke India", "Invoice No": "INV-6621", "Received By": "Admin", "Remarks": "" },
+    ];
+
+    // ── Sheet 4: Tool Issue Log (Stock OUT) ──────────────────────────
+    // ► THIS SHEET DRIVES ALL 4 KPI CARDS:
+    //   • Tools In Use  = count of distinct 'Item Code' values below
+    //   • Site Issue Trips = total rows in this sheet
+    //   • Most Used Tool = 'Item Code' with highest total 'Qty Out'
+    //   • Jobs Supplied  = count of distinct 'Job No' values below
+    // ► Both 'Item Code' and 'Job No' MUST exist in the sheets above.
+    const stockOut = [
+      { "Issue No": "ISS-2026-001", "Job No": "JOB-01", "Item Code": "TOOL-001", "Qty Out": 1, "Issued To": "Sunil Gavaskar", "Issued By": "Admin", "Remarks": "Site commissioning — Jamnagar" },
+      { "Issue No": "ISS-2026-002", "Job No": "JOB-01", "Item Code": "CABLE-001", "Qty Out": 80, "Issued To": "Rajesh Kumar", "Issued By": "Admin", "Remarks": "Panel wiring at site" },
+      { "Issue No": "ISS-2026-003", "Job No": "JOB-02", "Item Code": "TOOL-002", "Qty Out": 1, "Issued To": "Sunil Gavaskar", "Issued By": "Admin", "Remarks": "Load testing" },
+      { "Issue No": "ISS-2026-004", "Job No": "JOB-02", "Item Code": "TOOL-001", "Qty Out": 1, "Issued To": "Pankaj Sharma", "Issued By": "Admin", "Remarks": "Dielectric test" },
+      { "Issue No": "ISS-2026-005", "Job No": "JOB-03", "Item Code": "TOOL-003", "Qty Out": 1, "Issued To": "Amit Verma", "Issued By": "Admin", "Remarks": "Busbar torqueing" },
+      { "Issue No": "ISS-2026-006", "Job No": "JOB-03", "Item Code": "TOOL-002", "Qty Out": 1, "Issued To": "Sunil Gavaskar", "Issued By": "Admin", "Remarks": "Current measurement" },
+    ];
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(jobMaster), "Job Master");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(itemMaster), "Item Master");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(stockIn), "Stock IN");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(stockOut), "Tool Issue Log (Stock OUT)");
+
+    XLSX.writeFile(wb, "SkyTech_Inventory_Toolkit_Template.xlsx");
+  };
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -462,13 +523,36 @@ export default function InventoryPage() {
 
           {/* Tool Inventory & Site Visit Analytics */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Tool Inventory & Site Visit Analytics</h3>
                 <p className="text-xs text-slate-500">Material usage and job supply metrics across all site visits</p>
               </div>
-              <div className="w-8 h-8 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
-                <BarChart3 size={16} />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadTemplate}
+                  className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200"
+                  title="Download Excel Toolkit Template with sample sheets"
+                >
+                  <Download size={14} className="text-slate-600" />
+                  <span>Template</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsRefreshing(true);
+                    await fetchAllData();
+                    setIsRefreshing(false);
+                    showToast("✓ Inventory & KPI data refreshed from backend", "success");
+                  }}
+                  disabled={isRefreshing}
+                  className="px-3.5 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Refresh KPI data from backend. To upload new data, use 'Import Excel' in the Store Inventory section above."
+                >
+                  <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
+                  <span>{isRefreshing ? "Refreshing..." : "Refresh Data"}</span>
+                </button>
               </div>
             </div>
 
@@ -477,7 +561,7 @@ export default function InventoryPage() {
               {(() => {
                 const toolsInUse = new Set(issues.map(i => i.itemCode)).size;
                 return (
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between cursor-pointer hover:border-violet-400 hover:shadow-md transition-all" onClick={() => setActiveTab('stockOut')} title="Click to view Stock OUT records">
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tools In Use</span>
                       <div className="text-2xl font-extrabold text-slate-900 mt-1">{toolsInUse}</div>
@@ -491,7 +575,7 @@ export default function InventoryPage() {
               })()}
 
               {/* Site Issue Trips */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between cursor-pointer hover:border-blue-400 hover:shadow-md transition-all" onClick={() => setActiveTab('summary')} title="Click to view Job-wise Material Issue Summary">
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Site Issue Trips</span>
                   <div className="text-2xl font-extrabold text-slate-900 mt-1">{issues.length}</div>
@@ -848,6 +932,11 @@ export default function InventoryPage() {
                       ) : (
                         issuedItems.map((item: any) => {
                           const qty = jobSummary.matrix[job.jobNo]?.[item.itemCode] || 0;
+                          const technicians = issues
+                            .filter(iss => iss.jobNo === job.jobNo && iss.itemCode === item.itemCode && iss.issuedTo)
+                            .map(iss => iss.issuedTo)
+                            .filter((v: any, i: number, a: any[]) => a.indexOf(v) === i) // deduplicate
+                            .join(', ');
                           return (
                             <div
                               key={item.itemCode}
@@ -880,6 +969,14 @@ export default function InventoryPage() {
                                   </span>
                                 </div>
                               </div>
+                              {technicians && (
+                                <div className="pt-2 mt-1 border-t border-slate-100 flex items-center justify-between gap-2">
+                                  <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Issued To:</span>
+                                  <span className="text-xs font-bold text-slate-800 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-md truncate max-w-[140px]" title={technicians}>
+                                    {technicians}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           );
                         })

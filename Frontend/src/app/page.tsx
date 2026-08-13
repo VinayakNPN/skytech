@@ -37,6 +37,7 @@ import {
 import ProjectDropdown from '@/components/ProjectDropdown';
 import { API_BASE_URL } from '@/config/api';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/Toast';
 
 // Circular progress component
 const CircularProgress = ({ percentage, strokeColor }: { percentage: number; strokeColor: string }) => {
@@ -427,13 +428,28 @@ export default function Dashboard() {
   const [allInquiries, setAllInquiries] = useState<any[]>([]);
   const [allTasks, setAllTasks] = useState<any[]>([]);
   const router = useRouter();
+  const { showToast } = useToast();
+  const [isSnapshotView, setIsSnapshotView] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
 
   const [teamOverlayOpen, setTeamOverlayOpen] = useState(false);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
   const [highlightedPhaseId, setHighlightedPhaseId] = useState<string | null>(null);
   const pipelineRef = useRef<HTMLDivElement>(null);
+  const notesCardRef = useRef<HTMLDivElement>(null);
+  const [isNotesHighlighted, setIsNotesHighlighted] = useState(false);
   const [projectTeamCount, setProjectTeamCount] = useState<number>(0);
+
+  useEffect(() => {
+    const highlightHandler = () => {
+      setIsNotesHighlighted(true);
+      notesCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => setIsNotesHighlighted(false), 3000);
+    };
+    window.addEventListener('skytech:highlight_notes', highlightHandler);
+    return () => window.removeEventListener('skytech:highlight_notes', highlightHandler);
+  }, []);
 
   const [runningSiteJobs, setRunningSiteJobs] = useState<any[]>([]);
 
@@ -482,8 +498,11 @@ export default function Dashboard() {
           if (confirmed.length > 0) {
             setConfirmedProjects(confirmed);
             setSelectedProjectId(prev => (prev === 'ALL' ? 'ALL' : (prev && confirmed.some((p: any) => (p.inquiryCode || p.id) === prev) ? prev : (confirmed[0].inquiryCode || confirmed[0].id))));
+            // pageLoading will be cleared by fetchProjectTasks after WBS loads
             return;
           }
+          // Backend online but no confirmed projects
+          setPageLoading(false);
         }
       } catch (err) {
         console.error('Failed to fetch confirmed projects:', err);
@@ -492,6 +511,16 @@ export default function Dashboard() {
       if (DEFAULT_CONFIRMED_PROJECTS.length > 0) {
         setSelectedProjectId(DEFAULT_CONFIRMED_PROJECTS[0].id);
       }
+      setPageLoading(false);
+      // Also pre-fetch all WBS tasks so 'active dept' column shows real data
+      try {
+        const wbsRes = await fetch(`${API_BASE_URL}/api/wbs`);
+        if (wbsRes.ok) {
+          const wbsData = await wbsRes.json();
+          const flat = wbsData.flatMap((p: any) => p.tasks.map((t: any) => ({ ...t, phaseName: p.name, phaseBadge: p.badge })));
+          setAllTasks(flat);
+        }
+      } catch { /* non-critical */ }
     };
     fetchProjects();
 
@@ -528,23 +557,48 @@ export default function Dashboard() {
     const lookupCode = proj?.inquiryCode || proj?.id || selectedProjectId;
 
     const fetchProjectTasks = async () => {
+      // Compute whether we're viewing a historical date synchronously (no stale closure).
+      // If the user selected a past date, do NOT overwrite phases — the snapshot effect handles loading.
+      const isViewingHistoricalDate =
+        selectedDay !== todayDay ||
+        selectedMonth !== todayMonth ||
+        selectedYear !== todayYear;
+      if (isViewingHistoricalDate) return;
+
       try {
         const res = await fetch(`${API_BASE_URL}/api/wbs`);
         if (res.ok) {
           const dbPhases = await res.json();
           // buildPhasesForProject tries DB tasks first, then falls back to per-project profile
-          const newPhases = buildPhasesForProject(lookupCode, dbPhases);
+          const rawPhases = buildPhasesForProject(lookupCode, dbPhases);
+          // Restore saved notes from localStorage
+          const newPhases = rawPhases.map(p => {
+            const savedNote = typeof window !== 'undefined'
+              ? localStorage.getItem(`skytech_note_${selectedProjectId}_${p.id}`) ||
+                localStorage.getItem(`skytech_note_${lookupCode}_${p.id}`)
+              : null;
+            return savedNote ? { ...p, remark: savedNote } : p;
+          });
           setPhases(newPhases);
           setSelectedPhaseId(getNextActivePhaseId(newPhases));
+          setPageLoading(false);
           return;
         }
       } catch (err) {
         console.error('Project WBS fetch failed:', err);
       }
       // No API — use profile only
-      const newPhases = buildPhasesForProject(lookupCode);
+      const rawPhases = buildPhasesForProject(lookupCode);
+      const newPhases = rawPhases.map(p => {
+        const savedNote = typeof window !== 'undefined'
+          ? localStorage.getItem(`skytech_note_${selectedProjectId}_${p.id}`) ||
+            localStorage.getItem(`skytech_note_${lookupCode}_${p.id}`)
+          : null;
+        return savedNote ? { ...p, remark: savedNote } : p;
+      });
       setPhases(newPhases);
       setSelectedPhaseId(getNextActivePhaseId(newPhases));
+      setPageLoading(false);
     };
 
     const fetchProjectTeamCount = async () => {
@@ -566,7 +620,7 @@ export default function Dashboard() {
 
     fetchProjectTasks();
     fetchProjectTeamCount();
-  }, [selectedProjectId, confirmedProjects]);
+  }, [selectedProjectId, confirmedProjects]);  // Note: isSnapshotView intentionally NOT in deps
 
   const calendarRef = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
@@ -588,7 +642,34 @@ export default function Dashboard() {
   const selectedDateFormatted = `${selectedDay} ${MONTH_NAMES[selectedMonth]} ${selectedYear}`;
   const isToday = selectedDay === todayDay && selectedMonth === todayMonth && selectedYear === todayYear;
 
-  // Toggle task completion — enforces sequential department workflow
+  // Load progress snapshot for selected date
+  useEffect(() => {
+    if (!selectedProjectId || selectedProjectId === 'ALL') return;
+    const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+    const key = `skytech_progress_history_${selectedProjectId}_${dateStr}`;
+    const isSelectedDateToday = selectedDay === todayDay && selectedMonth === todayMonth && selectedYear === todayYear;
+
+    if (isSelectedDateToday) {
+      setIsSnapshotView(false);
+    } else {
+      setIsSnapshotView(true);
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setPhases(parsed);
+            }
+          } catch (e) {
+            console.error('Failed to parse history snapshot:', e);
+          }
+        }
+      }
+    }
+  }, [selectedDay, selectedMonth, selectedYear, selectedProjectId]);
+
+  // Toggle task completion — enforces sequential department workflow & stores snapshot
   const handleToggleTask = (phaseId: string, taskId: number) => {
     const phaseIdx = phases.findIndex(p => p.id === phaseId);
     if (phaseIdx < 0) return;
@@ -600,25 +681,64 @@ export default function Dashboard() {
 
     if (!previousPhasesAllDone) return; // silently block — UI already shows lock
 
-    setPhases(prev => prev.map(phase => {
-      if (phase.id !== phaseId) return phase;
-      return {
-        ...phase,
-        tasks: phase.tasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t)
-      };
-    }));
+    setPhases(prev => {
+      const updated = prev.map(phase => {
+        if (phase.id !== phaseId) return phase;
+        return {
+          ...phase,
+          tasks: phase.tasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t)
+        };
+      });
+      // Always save to today's key (not selectedDay) so history reflects when tasks were done
+      if (typeof window !== 'undefined') {
+        const todayStr = `${todayYear}-${String(todayMonth + 1).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}`;
+        const todayKey = `skytech_progress_history_${selectedProjectId}_${todayStr}`;
+        localStorage.setItem(todayKey, JSON.stringify(updated));
+      }
+      return updated;
+    });
   };
 
-  // Update remark for phase
+  // Update remark/note for phase — persists to backend and dispatches notification
   const handleRemarkChange = (phaseId: string, remark: string) => {
     setPhases(prev => prev.map(phase => phase.id === phaseId ? { ...phase, remark } : phase));
   };
 
-  // Open Assigned Team overlay — fetches real backend data only
+  const handleRemarkSave = async (phaseId: string, remark: string) => {
+    // Find the first WBS task belonging to this phase to save the note to
+    const proj = confirmedProjects.find(p => p.id === selectedProjectId || p.inquiryCode === selectedProjectId);
+    const lookupCode = proj?.inquiryCode || proj?.id || selectedProjectId;
+    const phaseName = phases.find(p => p.id === phaseId)?.shortName || phaseId;
+
+    // Save to localStorage as a keyed note for this project+phase
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`skytech_note_${selectedProjectId}_${phaseId}`, remark);
+    }
+
+    // Try to persist to backend
+    try {
+      await fetch(`${API_BASE_URL}/api/wbs/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: selectedProjectId, phaseId, note: remark, lookupCode })
+      });
+    } catch { /* offline — localStorage is the fallback */ }
+
+    // Dispatch notification for the bell — client tailored
+    if (typeof window !== 'undefined' && remark.trim()) {
+      window.dispatchEvent(new CustomEvent('skytech:notification', {
+        detail: { message: `📝 New note added for [${selectedProjectId}] ${phaseName}: "${remark.substring(0, 50)}${remark.length > 50 ? '…' : ''}"` }
+      }));
+    }
+    showToast(`✓ Note updated for ${phaseName}`);
+  };
+
+  // Open Assigned Team overlay — fetches real backend data with fallback roster
   const handleAssignedTeamClick = async () => {
     setTeamOverlayOpen(true);
     setTeamLoading(true);
     setTeamMembers([]);
+    let membersList: any[] = [];
     try {
       const proj = confirmedProjects.find(p => p.id === selectedProjectId || p.inquiryCode === selectedProjectId);
       const projectUUID = proj?.id || selectedProjectId;
@@ -629,15 +749,59 @@ export default function Dashboard() {
       }
       if (res.ok) {
         const data = await res.json();
-        setTeamMembers(Array.isArray(data) ? data : []);
-      } else {
-        setTeamMembers([]);
+        if (Array.isArray(data) && data.length > 0) {
+          membersList = data;
+        }
       }
-    } catch {
-      setTeamMembers([]);
-    } finally {
-      setTeamLoading(false);
+    } catch {}
+
+    if (membersList.length === 0 && typeof window !== 'undefined') {
+      const storedRoster = localStorage.getItem(`skytech_project_team_${selectedProjectId}`);
+      if (storedRoster) {
+        try {
+          const parsed = JSON.parse(storedRoster);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            membersList = parsed;
+          }
+        } catch {}
+      }
     }
+
+    if (membersList.length === 0 && typeof window !== 'undefined') {
+      // Collect assignments ONLY for tasks belonging to selectedProjectId
+      const projectTaskIds = phases.flatMap(p => p.tasks).map(t => t.id);
+      const assignedFromTasks: any[] = [];
+
+      projectTaskIds.forEach(taskId => {
+        const stored = localStorage.getItem(`skytech_task_assignments_${taskId}`);
+        if (stored) {
+          try {
+            const val = JSON.parse(stored);
+            if (Array.isArray(val)) {
+              val.forEach(a => {
+                const emp = a.employee || a;
+                if (emp?.name && !assignedFromTasks.some(m => m.name === emp.name)) {
+                  assignedFromTasks.push({
+                    name: emp.name,
+                    email: `${emp.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@skytech.com`,
+                    role: a.role || emp.designation || 'Team Member',
+                    department: emp.department || 'Engineering',
+                    empCode: emp.empCode
+                  });
+                }
+              });
+            }
+          } catch {}
+        }
+      });
+
+      if (assignedFromTasks.length > 0) {
+        membersList = assignedFromTasks;
+      }
+    }
+
+    setTeamMembers(membersList);
+    setTeamLoading(false);
   };
 
   // Highlight the active department's phase circle and scroll to it
@@ -651,6 +815,38 @@ export default function Dashboard() {
 
   // Selected phase data object
   const activePhaseData = phases.find(p => p.id === selectedPhaseId) || phases[0];
+
+  // Dynamic calculation of assigned staff count SCOPED ONLY to selected project
+  const assignedStaffCount = React.useMemo(() => {
+    if (typeof window === 'undefined' || !selectedProjectId || selectedProjectId === 'ALL') return 0;
+    const storedRoster = localStorage.getItem(`skytech_project_team_${selectedProjectId}`);
+    if (storedRoster) {
+      try {
+        const parsed = JSON.parse(storedRoster);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed.length;
+      } catch {}
+    }
+    // Check task assignments ONLY for tasks belonging to selectedProjectId
+    const projectTaskIds = phases.flatMap(p => p.tasks).map(t => t.id);
+    const uniqueStaff = new Set<string>();
+
+    projectTaskIds.forEach(taskId => {
+      const stored = localStorage.getItem(`skytech_task_assignments_${taskId}`);
+      if (stored) {
+        try {
+          const val = JSON.parse(stored);
+          if (Array.isArray(val)) {
+            val.forEach(a => {
+              const name = a.employee?.name || a.name;
+              if (name) uniqueStaff.add(name);
+            });
+          }
+        } catch {}
+      }
+    });
+
+    return uniqueStaff.size;
+  }, [selectedProjectId, phases]);
 
   // ── Project-scoped stats ── all derived from `phases` which updates on project switch
   const projectStats = React.useMemo(() => {
@@ -672,10 +868,9 @@ export default function Dashboard() {
     const overallProgress = totalTasksCount === 0 ? 0 : Math.round((totalCompleted / totalTasksCount) * 100);
     const activeIncompletePhase = phases.find(p => p.tasks.some(t => !t.completed)) || phases[phases.length - 1];
 
-    // Project-seeded (deterministic) staff number so it varies per project but stays stable
-    const assignedStaff = projectTeamCount;
-    const presentStaff = projectTeamCount;
-    const attendancePct = projectTeamCount > 0 ? 100 : 0;
+    const assignedStaff = assignedStaffCount;
+    const presentStaff = assignedStaffCount;
+    const attendancePct = assignedStaffCount > 0 ? 100 : 0;
 
     // Phases still active (in progress or not started)
     const activePhaseCount = deptsInProgress + deptsNotStarted;
@@ -695,7 +890,7 @@ export default function Dashboard() {
       activePhaseCount,
       currentPhase: activeIncompletePhase.shortName
     };
-  }, [phases, selectedProjectId, projectTeamCount]);
+  }, [phases, assignedStaffCount]);
 
   const stats = projectStats;
 
@@ -792,6 +987,41 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Skeleton loading state while projects are being fetched */}
+      {pageLoading && confirmedProjects.length === 0 && (
+        <div className="space-y-6 animate-pulse">
+          {/* Top header skeleton */}
+          <div className="flex items-center justify-between">
+            <div className="h-9 w-48 bg-slate-200 rounded-xl" />
+            <div className="h-9 w-36 bg-slate-200 rounded-xl" />
+          </div>
+          {/* KPI cards skeleton */}
+          <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-36 bg-white rounded-2xl border border-slate-200 shadow-xs p-4 flex flex-col gap-3">
+                <div className="h-3 w-24 bg-slate-200 rounded" />
+                <div className="h-8 w-16 bg-slate-200 rounded" />
+                <div className="h-3 w-32 bg-slate-200 rounded" />
+              </div>
+            ))}
+          </div>
+          {/* Pipeline skeleton */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="h-5 w-40 bg-slate-200 rounded" />
+              <div className="h-5 w-24 bg-slate-200 rounded" />
+            </div>
+            <div className="flex items-center gap-4">
+              {[...Array(7)].map((_, i) => (
+                <div key={i} className="flex flex-col items-center gap-2">
+                  <div className="w-14 h-14 rounded-full bg-slate-200" />
+                  <div className="h-2 w-12 bg-slate-200 rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
         {/* Left side: Project Dropdown and History warning if viewing past dates */}
@@ -958,12 +1188,34 @@ export default function Dashboard() {
           <div className="divide-y divide-slate-100">
             {confirmedProjects.map((proj) => {
               const projId = proj.inquiryCode || proj.id;
-              const projPhases = buildPhasesForProject(projId);
-              const totalTasks = projPhases.reduce((s, p) => s + p.tasks.length, 0);
-              const doneTasks = projPhases.reduce((s, p) => s + p.tasks.filter(t => t.completed).length, 0);
-              const activePhase = projPhases.find(p => p.tasks.some(t => !t.completed));
+
+              // Derive active dept from real backend tasks (allTasks) if available
+              const realProjTasks = allTasks.filter(t =>
+                t.inquiryId === proj.id || t.inquiry?.id === proj.id ||
+                t.inquiry?.inquiryCode === projId || t.inquiryId === projId
+              );
+
+              let activePhaseShortName: string | null = null;
+              let doneTasks = 0;
+              let totalTasks = 0;
+
+              if (realProjTasks.length > 0) {
+                // Use real backend data
+                totalTasks = realProjTasks.length;
+                doneTasks = realProjTasks.filter(t => t.status === 'DONE').length;
+                // First task that is NOT done — its phaseName is the active dept
+                const firstIncomplete = realProjTasks.find(t => t.status !== 'DONE');
+                activePhaseShortName = firstIncomplete?.phaseName?.split(' ')[0] || null;
+              } else {
+                // Fall back to static profile
+                const projPhases = buildPhasesForProject(projId);
+                totalTasks = projPhases.reduce((s, p) => s + p.tasks.length, 0);
+                doneTasks = projPhases.reduce((s, p) => s + p.tasks.filter(t => t.completed).length, 0);
+                const activePhase = projPhases.find(p => p.tasks.some(t => !t.completed));
+                activePhaseShortName = activePhase?.shortName || null;
+              }
+
               const isSelected = projId === selectedProjectId || proj.id === selectedProjectId;
-              const hasError = projPhases.some((p, i) => i > 0 && p.tasks.some(t => !t.completed) && !projPhases[i - 1].tasks.every(t => t.completed));
               return (
                 <div
                   key={proj.id}
@@ -995,7 +1247,7 @@ export default function Dashboard() {
                       <span className="text-[9px] text-slate-400 block">tasks</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] font-semibold text-blue-600 block truncate max-w-[90px]">{activePhase?.shortName || 'Complete'}</span>
+                      <span className="text-[10px] font-semibold text-blue-600 block truncate max-w-[90px]">{activePhaseShortName || 'Complete'}</span>
                       <span className="text-[9px] text-slate-400">active dept</span>
                     </div>
                   </div>
@@ -1099,6 +1351,23 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Historical Date Progress Snapshot Banner */}
+      {isSnapshotView && !isToday && selectedProjectId !== 'ALL' && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-3.5 px-5 flex items-center justify-between shadow-xs mb-4 animate-fade-in">
+          <div className="flex items-center gap-2.5 text-xs font-semibold">
+            <Clock size={16} className="text-amber-600 shrink-0" />
+            <span>Viewing Historical Progress Snapshot for <strong>{selectedDateFormatted}</strong></span>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleSetPreset(todayDay, todayMonth, todayYear)}
+            className="text-xs font-bold text-amber-800 hover:text-amber-950 bg-amber-100/80 hover:bg-amber-200 px-3 py-1 rounded-xl transition-colors cursor-pointer"
+          >
+            Return to Today
+          </button>
+        </div>
+      )}
+
       {/* KPI Stats — 5 Cards */}
       {selectedProjectId !== 'ALL' && (
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -1198,24 +1467,45 @@ export default function Dashboard() {
           <MiniBarChart barColor="bg-amber-400" />
         </div>
       
-        {/* Card 5: REMARK BOX — replaces DEPTS DONE */}
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between h-[155px]">
+        {/* Card 5: NOTES BOX — replaces REMARK */}
+        <div
+          ref={notesCardRef}
+          className={`bg-white p-4.5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between h-[155px] ${
+            isNotesHighlighted ? 'ring-2 ring-blue-500 bg-blue-50/60 shadow-lg' : ''
+          }`}
+        >
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
               <MessageSquare size={11} className="text-blue-500" />
-              REMARK
+              NOTES
             </span>
             <span className="text-[9px] font-semibold text-slate-300">{activePhaseData?.shortName}</span>
           </div>
           <textarea
-            value={activePhaseData?.remark || ''}
-            onChange={(e) => activePhaseData && handleRemarkChange(activePhaseData.id, e.target.value)}
-            placeholder="Dept remark..."
+            value={
+              typeof window !== 'undefined'
+                ? localStorage.getItem(`skytech_project_note_${selectedProjectId}`) ||
+                  localStorage.getItem(`skytech_note_${selectedProjectId}_${activePhaseData?.id}`) ||
+                  ''
+                : ''
+            }
+            onChange={(e) => {
+              if (activePhaseData) handleRemarkChange(activePhaseData.id, e.target.value);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(`skytech_project_note_${selectedProjectId}`, e.target.value);
+              }
+            }}
+            onBlur={(e) => {
+              if (activePhaseData) {
+                handleRemarkSave(activePhaseData.id, e.target.value);
+              }
+            }}
+            placeholder="No notes for this project..."
             rows={3}
             className="w-full flex-1 p-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-medium text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
           />
-          <div className="text-[9px] text-slate-300 font-medium mt-1 flex items-center gap-1">
-            <Sparkles size={10} className="text-blue-300" />Auto-saved
+          <div className="text-[9px] text-slate-400 font-medium mt-1 flex items-center gap-1">
+            <Sparkles size={10} className="text-blue-400" />Synced from WBS & Dashboard
           </div>
         </div>
       
@@ -1582,35 +1872,39 @@ export default function Dashboard() {
                 teamMembers.map((member: any, idx: number) => {
                   const empName = member.employee?.name || member.name || 'Team Member';
                   const empCode = member.employee?.empCode || '';
-                  const empDept = member.department || member.employee?.department || '';
-                  const empRole = member.role || member.employee?.designation || 'Member';
-                  const isLeadership = empRole === 'Program Manager' || empRole === 'Project Lead';
+                  const empEmail = member.email || member.employee?.email || `${empName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@skytech.com`;
+                  const empDept = member.department || member.employee?.department || 'Engineering';
+                  const empRole = member.role || member.employee?.designation || 'Team Member';
+                  const isLeadership = empRole === 'Program Manager' || empRole === 'Project Lead' || empRole === 'Design Lead';
 
                   return (
                     <div
                       key={idx}
-                      className="p-3 bg-white hover:bg-emerald-50/30 rounded-xl border border-slate-200/80 shadow-2xs hover:border-emerald-300 flex items-center justify-between gap-3 transition-all"
+                      className="p-3 bg-white hover:bg-blue-50/20 rounded-xl border border-slate-200 flex items-center justify-between gap-3 transition-all"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-[#0E3B68] text-white flex items-center justify-center font-extrabold text-xs flex-shrink-0 shadow-xs border border-blue-900/20">
+                        <div className="w-9 h-9 rounded-lg bg-[#0E3B68] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 border border-blue-900/20">
                           {empName[0].toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-900 truncate">{empName}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-semibold text-slate-800 truncate">{empName}</span>
                             {empCode && (
-                              <span className="text-[9px] font-mono font-extrabold text-slate-500 bg-slate-100 border border-slate-200/80 px-1.5 py-0.2 rounded-md">
+                              <span className="text-[10px] font-mono text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded font-normal">
                                 {empCode}
                               </span>
                             )}
                           </div>
-                          <span className="text-[10px] text-slate-500 font-medium block truncate mt-0.5">
-                            {empDept ? `${empDept} • ` : ''}{empRole}
+                          <span className="text-[11px] text-slate-500 font-normal block truncate mt-0.5">
+                            {empEmail}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-normal block truncate mt-0.5">
+                            Dept: <span className="text-slate-700 font-medium">{empDept}</span>
                           </span>
                         </div>
                       </div>
 
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md flex-shrink-0 border ${
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-lg flex-shrink-0 border ${
                         isLeadership
                           ? 'bg-purple-50 text-purple-700 border-purple-200'
                           : 'bg-emerald-50 text-emerald-700 border-emerald-200'

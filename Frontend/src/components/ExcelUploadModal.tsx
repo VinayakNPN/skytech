@@ -90,7 +90,7 @@ export function ExcelUploadModal({
       }
     } catch (err: any) {
       console.error(err);
-      setError("Network error uploading file.");
+      setError("Network error uploading file. Please verify backend server is running.");
     } finally {
       setUploading(false);
     }

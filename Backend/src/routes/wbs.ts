@@ -145,7 +145,9 @@ router.put('/tasks/:id', async (req, res) => {
         ...(status && { status }),
         ...(progress !== undefined && { progress: Number(progress) }),
         // @ts-ignore
-        ...(req.body.blockers !== undefined && { blockers: req.body.blockers })
+        ...(req.body.blockers !== undefined && { blockers: req.body.blockers }),
+        ...(req.body.notes !== undefined && { notes: req.body.notes || null }),
+        ...(req.body.errorFlag !== undefined && { errorFlag: req.body.errorFlag || null })
       }
     });
 
@@ -156,6 +158,7 @@ router.put('/tasks/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to update WBS task' });
   }
 });
+
 
 // DELETE WBS task from Database
 router.delete('/tasks/:id', async (req, res) => {

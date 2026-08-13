@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { 
@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { ToastProvider } from '@/components/Toast';
 
 export interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -40,7 +41,8 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [backendStatus, setBackendStatus] = useState<'Online' | 'Offline' | 'Checking'>('Checking');
-  const [notificationCount, setNotificationCount] = useState(3);
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
+  const [notifications, setNotifications] = useState<{id: string; message: string; time: string; read: boolean}[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Restore sidebar state from localStorage on mount (after hydration)
@@ -50,10 +52,57 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     if (saved !== null) {
       setSidebarOpen(saved === 'true');
     }
+    // Load notifications from localStorage — client friendly defaults
+    const storedNotifs = localStorage.getItem('skytech_notifications');
+    if (storedNotifs) {
+      try {
+        const parsed = JSON.parse(storedNotifs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setNotifications(parsed);
+        } else {
+          throw new Error('empty');
+        }
+      } catch {
+        const initial = [
+          { id: 'N-1', message: '📝 New note arrived for Project [JOB-01]: "Control wiring schematics verified"', time: '10:30 AM', read: false },
+          { id: 'N-2', message: '📋 Project [JOB-01] Testing Phase updated to In Progress', time: '09:15 AM', read: true }
+        ];
+        setNotifications(initial);
+        localStorage.setItem('skytech_notifications', JSON.stringify(initial));
+      }
+    } else {
+      const initial = [
+        { id: 'N-1', message: '📝 New note arrived for Project [JOB-01]: "Control wiring schematics verified"', time: '10:30 AM', read: false },
+        { id: 'N-2', message: '📋 Project [JOB-01] Testing Phase updated to In Progress', time: '09:15 AM', read: true }
+      ];
+      setNotifications(initial);
+      localStorage.setItem('skytech_notifications', JSON.stringify(initial));
+    }
     // Remove temporary pre-paint helper class from html element after React mounts
     if (typeof document !== 'undefined') {
       document.documentElement.classList.remove('sidebar-collapsed');
     }
+  }, []);
+
+  // Listen for new notifications pushed from anywhere via custom event
+  useEffect(() => {
+    const handler = (e: any) => {
+      const msg = e.detail?.message || e.detail || '';
+      if (!msg) return;
+      const newNotif = {
+        id: `N-${Date.now()}`,
+        message: String(msg),
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        read: false
+      };
+      setNotifications(prev => {
+        const updated = [newNotif, ...prev].slice(0, 50);
+        localStorage.setItem('skytech_notifications', JSON.stringify(updated));
+        return updated;
+      });
+    };
+    window.addEventListener('skytech:notification', handler);
+    return () => window.removeEventListener('skytech:notification', handler);
   }, []);
 
   // Save sidebar state to localStorage when toggled
@@ -69,6 +118,7 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [showSignOutToast, setShowSignOutToast] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
 
   const user = authUser ? {
     name: authUser.name,
@@ -96,6 +146,9 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       const container = document.getElementById('profile-menu-container');
       if (container && !container.contains(event.target as Node)) {
         setProfileOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setNotificationPanelOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -341,19 +394,73 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
 
           {/* Right Header Controls */}
           <div className="flex items-center gap-4">
-            {/* Quick Alerts */}
-            <div className="relative">
-              <button 
-                onClick={() => setNotificationCount(0)}
+            {/* Notifications Bell */}
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => {
+                  setNotificationPanelOpen(prev => !prev);
+                  // Mark all as read when panel opens
+                  setNotifications(prev => {
+                    const updated = prev.map(n => ({ ...n, read: true }));
+                    localStorage.setItem('skytech_notifications', JSON.stringify(updated));
+                    return updated;
+                  });
+                }}
                 className="p-2 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all duration-200 relative"
               >
                 <Bell size={18} />
-                {notificationCount > 0 && (
+                {notifications.filter(n => !n.read).length > 0 && (
                   <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[9px] font-bold border border-white">
-                    {notificationCount}
+                    {notifications.filter(n => !n.read).length}
                   </span>
                 )}
               </button>
+
+              {/* Notification Dropdown Panel */}
+              {notificationPanelOpen && (
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 animate-in fade-in slide-in-from-top-2 duration-150 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                    <span className="text-sm font-bold text-slate-800">Notifications</span>
+                    {notifications.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setNotifications([]);
+                          localStorage.removeItem('skytech_notifications');
+                        }}
+                        className="text-[10px] font-bold text-slate-400 hover:text-rose-500 transition-colors"
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
+                    {notifications.length === 0 ? (
+                      <div className="py-8 text-center text-xs text-slate-400 font-semibold">
+                        No notifications yet
+                      </div>
+                    ) : (
+                      notifications.map(n => (
+                        <div
+                          key={n.id}
+                          onClick={() => {
+                            if (n.message.toLowerCase().includes('note')) {
+                              window.dispatchEvent(new CustomEvent('skytech:highlight_notes'));
+                              setNotificationPanelOpen(false);
+                            }
+                          }}
+                          className={`px-4 py-3 text-xs flex items-start gap-2 cursor-pointer hover:bg-slate-100 ${n.read ? 'bg-white' : 'bg-blue-50'}`}
+                        >
+                          <span className={`w-2 h-2 rounded-full mt-1 flex-shrink-0 ${n.read ? 'bg-slate-300' : 'bg-blue-500'}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-slate-700 leading-snug">{n.message}</p>
+                            <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">{n.time}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Divider */}
@@ -519,8 +626,10 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
-    <React.Suspense fallback={<div className="min-h-screen bg-[#F8FAFC]" />}>
-      <DashboardLayoutInner>{children}</DashboardLayoutInner>
-    </React.Suspense>
+    <ToastProvider>
+      <React.Suspense fallback={<div className="min-h-screen bg-[#F8FAFC]" />}>
+        <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      </React.Suspense>
+    </ToastProvider>
   );
 }

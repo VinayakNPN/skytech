@@ -83,6 +83,8 @@ model WBSTask {
   status      String   // "DONE", "IN PROGRESS", "NOT STARTED"
   progress    Int      @default(0)
   blockers    String?  // Text area for tracking issues/blockers
+  notes       String?  // Notes synced to dashboard pipeline card
+  errorFlag   String?  // Error/Issue flag for escalation to higher management
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -122,6 +124,10 @@ model Employee {
   isAdmin      Boolean  @default(false)
   permissions  String   @default("{}")
   status       String
+  // Leave balances (HR-editable)
+  casualLeaveBalance    Int @default(12)
+  sickLeaveBalance      Int @default(8)
+  privilegeLeaveBalance Int @default(15)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

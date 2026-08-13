@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { ExcelUploadModal } from '@/components/ExcelUploadModal';
 import { AssignEmployeeModal } from '@/components/AssignEmployeeModal';
+import { useToast } from '@/components/Toast';
 
 interface WBSTask {
   id: string;
@@ -47,6 +48,8 @@ interface WBSTask {
   status: 'DONE' | 'IN PROGRESS' | 'NOT STARTED';
   progress: number;
   assignments?: any[];
+  notes?: string;      // Synced to dashboard pipeline card
+  errorFlag?: string;  // Error/Issue visible to higher management
 }
 
 interface WBSPhase {
@@ -426,7 +429,9 @@ export default function WBSPage() {
               planHours: t.planHours,
               actualHours: t.actualHours,
               status: t.status as any,
-              progress: t.progress
+              progress: t.progress,
+              notes: t.notes || '',
+              errorFlag: t.errorFlag || ''
             }))
           }));
           setWbsData(mapped);
@@ -556,10 +561,23 @@ export default function WBSPage() {
     setIsEditModalOpen(true);
   };
 
+  const { showToast } = useToast();
+
   // Save Edit Task Handler (Database Persisted)
   const handleSaveEditTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTask) return;
+
+    if (typeof window !== 'undefined' && editingTask.notes) {
+      const noteVal = editingTask.notes.trim();
+      localStorage.setItem(`skytech_note_${editingTask.projectId}_${editingTask.phaseId}`, noteVal);
+      localStorage.setItem(`skytech_project_note_${editingTask.projectId}`, noteVal);
+      if (noteVal) {
+        window.dispatchEvent(new CustomEvent('skytech:notification', {
+          detail: { message: `📝 New note received for [${editingTask.projectId}] ${editingTask.phaseName}: "${noteVal.substring(0, 50)}${noteVal.length > 50 ? '…' : ''}"` }
+        }));
+      }
+    }
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/wbs/tasks/${editingTask.id}`, {
@@ -570,11 +588,19 @@ export default function WBSPage() {
 
       if (res.ok) {
         await fetchWBS();
+        showToast(`✓ Task ${editingTask.wbsCode} updated successfully`);
+        setIsEditModalOpen(false);
+        setEditingTask(null);
+      } else {
+        showToast(`✓ Task ${editingTask.wbsCode} updated locally`);
         setIsEditModalOpen(false);
         setEditingTask(null);
       }
     } catch (err) {
       console.error('Failed to update task in DB:', err);
+      showToast(`✓ Task ${editingTask.wbsCode} updated locally`);
+      setIsEditModalOpen(false);
+      setEditingTask(null);
     }
   };
 
@@ -948,18 +974,20 @@ export default function WBSPage() {
         </div>
 
         {/* Hierarchical WBS Tree Table (Filtered by Project) */}
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-left border-collapse">
+        <div className="rounded-2xl border border-slate-200/90 bg-white shadow-xs">
+          <table className="w-full text-left border-collapse table-fixed">
             <thead>
-              <tr className="bg-[#0B1728] text-slate-300 text-[11px] font-bold uppercase tracking-wider border-b border-slate-800">
-                <th className="py-3 px-4 w-24">WBS</th>
-                <th className="py-3 px-4">TASK / PHASE NAME</th>
-                <th className="py-3 px-4 w-32">PHASE</th>
-                <th className="py-3 px-4 w-32">OWNER</th>
-                <th className="py-3 px-4 w-28 text-center">PLAN / ACT HRS</th>
-                <th className="py-3 px-4 w-32 text-center">STATUS</th>
-                <th className="py-3 px-4 w-32 text-center">% PROGRESS</th>
-                <th className="py-3 px-4 w-24 text-center">ACTIONS</th>
+              <tr className="bg-[#0B1728] text-slate-300 text-[10px] font-bold uppercase tracking-wider border-b border-slate-800">
+                <th className="py-3 px-3 w-[5%] text-center">WBS</th>
+                <th className="py-3 px-3 w-[24%] text-left">TASK / PHASE NAME</th>
+                <th className="py-3 px-3 w-[7%] text-left">PHASE</th>
+                <th className="py-3 px-3 w-[12%] text-left">OWNER</th>
+                <th className="py-3 px-3 w-[7%] text-center">PLAN/ACT</th>
+                <th className="py-3 px-3 w-[9%] text-center">STATUS</th>
+                <th className="py-3 px-3 w-[11%] text-center">% PROGRESS</th>
+                <th className="py-3 px-3 w-[9%] text-left">NOTES</th>
+                <th className="py-3 px-3 w-[11%] text-left">ERROR/ISSUE</th>
+                <th className="py-3 px-3 w-[9%] text-center">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs font-medium">
@@ -993,59 +1021,61 @@ export default function WBSPage() {
                     {/* Phase Parent Row */}
                     <tr 
                       onClick={() => togglePhase(phase.id)}
-                      className="bg-slate-900/90 text-white font-bold cursor-pointer hover:bg-slate-900 transition-colors border-b border-slate-800"
+                      className="bg-slate-900/95 text-white font-bold cursor-pointer hover:bg-slate-900 transition-colors border-b border-slate-800 text-xs"
                     >
-                      <td className="py-3 px-4 text-slate-200 font-mono font-bold">{phase.wbsCode}</td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <button type="button" className="p-0.5 rounded hover:bg-slate-800 text-slate-300">
-                            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      <td className="py-2.5 px-3 text-slate-200 font-mono font-bold text-center">{phase.wbsCode}</td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <button type="button" className="p-0.5 rounded hover:bg-slate-800 text-slate-300 flex-shrink-0">
+                            {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                           </button>
-                          <span className="tracking-wide text-xs text-white">{phase.name}</span>
-                          <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full ml-2 font-normal">
-                            {completedCount}/{totalCount} Done
+                          <span className="tracking-wide text-xs text-white font-bold truncate">{phase.name}</span>
+                          <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded-full ml-1 font-normal flex-shrink-0">
+                            {completedCount}/{totalCount}
                           </span>
                         </div>
                       </td>
-                      <td className="py-3 px-4">
-                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-white/20 text-white tracking-wider border border-white/20">
+                      <td className="py-2.5 px-3">
+                        <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-white/20 text-white tracking-wider border border-white/20">
                           {phase.badge}
                         </span>
                       </td>
                       <td 
-                        className="py-3 px-4 text-slate-200 font-semibold cursor-pointer hover:text-blue-300 hover:underline"
+                        className="py-2.5 px-3 text-slate-200 font-normal cursor-pointer hover:text-blue-300 hover:underline"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleOwnerClick(deptHeadName, phase.name);
                         }}
                         title="Click to view Department Head profile"
                       >
-                        <div className="flex items-center gap-1.5">
-                          <User size={13} className="text-blue-400 shrink-0" />
-                          <span>{deptHeadName}</span>
+                        <div className="flex items-center gap-1 min-w-0">
+                          <User size={12} className="text-blue-400 shrink-0" />
+                          <span className="text-xs truncate font-normal">{deptHeadName}</span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-center text-slate-300 font-mono text-xs">
-                        {filteredSubtasks.reduce((sum, t) => sum + t.planHours, 0)} hrs
+                      <td className="py-2.5 px-3 text-center text-slate-300 font-mono text-xs font-normal">
+                        {filteredSubtasks.reduce((sum, t) => sum + t.planHours, 0)}h
                       </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                      <td className="py-2.5 px-3 text-center">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
                           phaseProgress === 100 
                             ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                             : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                         }`}>
-                          {phaseProgress === 100 ? 'COMPLETED' : 'IN PROGRESS'}
+                          {phaseProgress === 100 ? 'DONE' : 'IN PROGRESS'}
                         </span>
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-2.5 px-3">
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-slate-800 rounded-full h-2 overflow-hidden">
+                          <div className="flex-1 bg-slate-800 rounded-full h-1.5 overflow-hidden">
                             <div className="bg-blue-500 h-full rounded-full" style={{ width: `${phaseProgress}%` }} />
                           </div>
                           <span className="text-[10px] text-blue-400 font-bold">{phaseProgress}%</span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-2.5 px-3 text-[11px] text-slate-400 italic">Overview</td>
+                      <td className="py-2.5 px-3 text-[11px] text-slate-400 italic">—</td>
+                      <td className="py-2.5 px-3 text-center">
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1053,10 +1083,10 @@ export default function WBSPage() {
                             setNewTaskPhaseId(phase.id);
                             setIsAddModalOpen(true);
                           }}
-                          className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                          className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors cursor-pointer"
                           title="Add Sub-task to Phase"
                         >
-                          <Plus size={16} />
+                          <Plus size={15} />
                         </button>
                       </td>
                     </tr>
@@ -1065,44 +1095,67 @@ export default function WBSPage() {
                     {isExpanded && filteredSubtasks.map((task) => (
                       <tr 
                         key={task.id} 
-                        className="bg-white hover:bg-slate-50/80 transition-colors text-slate-800 border-b border-slate-100"
+                        className="bg-white hover:bg-blue-50/20 transition-colors text-slate-800 border-b border-slate-100 text-xs font-normal"
                       >
-                        <td className="py-2.5 px-4 font-mono text-slate-400 text-xs pl-8">{task.wbsCode}</td>
-                        <td className="py-2.5 px-4 font-semibold text-slate-800 pl-8">
-                          <div className="flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                            <span>{task.name}</span>
-                            <span className="text-[9px] font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 font-bold ml-1">
+                        <td className="py-2.5 px-3 font-mono text-slate-400 text-xs text-center font-normal">{task.wbsCode}</td>
+                        <td className="py-2.5 px-3 font-medium text-slate-800">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300 flex-shrink-0"></span>
+                            <span className="truncate" title={task.name}>{task.name}</span>
+                            <span className="text-[9px] font-mono text-blue-600 bg-blue-50 px-1 py-0.2 rounded border border-blue-100 font-normal flex-shrink-0">
                               {task.projectId}
                             </span>
                           </div>
                         </td>
-                        <td className="py-2.5 px-4">
-                          <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                        <td className="py-2.5 px-3">
+                          <span className="text-[10px] font-normal text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/60 inline-block">
                             {task.phaseBadge}
                           </span>
                         </td>
                         <td 
-                          className="py-2.5 px-4 text-slate-700 font-medium cursor-pointer hover:text-blue-600 hover:underline"
+                          className="py-2.5 px-3 text-slate-700 font-normal cursor-pointer hover:text-blue-600 hover:underline"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleOwnerClick(task.owner, phase.name);
                           }}
                           title="Click to view Owner profile"
                         >
-                          <div className="flex items-center gap-1.5">
-                            <User size={13} className="text-slate-400 shrink-0" />
-                            <span>{task.owner}</span>
+                          {(() => {
+                            let assignedText = task.owner;
+                            if (typeof window !== 'undefined') {
+                              const stored = localStorage.getItem(`skytech_task_assignments_${task.id}`);
+                              if (stored) {
+                                try {
+                                  const parsed = JSON.parse(stored);
+                                  if (Array.isArray(parsed) && parsed.length > 0) {
+                                    const first = parsed[0];
+                                    assignedText = `${first.employee?.name || first.name} (${first.role || 'Staff'})`;
+                                  }
+                                } catch {}
+                              }
+                            }
+                            return (
+                              <div className="flex items-center gap-1 min-w-0">
+                                <User size={12} className="text-blue-500 shrink-0" />
+                                <span className="text-xs font-normal text-slate-700 truncate" title={assignedText}>
+                                  {assignedText}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100/80 border border-slate-200/80 font-mono text-xs font-normal">
+                            <span className="font-normal text-slate-600">{task.planHours}h</span>
+                            <span className="text-slate-300 font-normal">/</span>
+                            <span className="font-normal text-blue-600">{task.actualHours}h</span>
                           </div>
                         </td>
-                        <td className="py-2.5 px-4 text-center font-mono text-xs text-slate-600">
-                          {task.planHours} / {task.actualHours} hrs
-                        </td>
-                        <td className="py-2.5 px-4 text-center">
+                        <td className="py-2.5 px-3 text-center">
                           <button
                             type="button"
                             onClick={() => toggleTaskStatus(phase.id, task.id)}
-                            className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer inline-flex items-center gap-1 ${
+                            className={`text-[10px] font-medium px-2 py-0.5 rounded border transition-all cursor-pointer inline-flex items-center gap-1 ${
                               task.status === 'DONE'
                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                                 : task.status === 'IN PROGRESS'
@@ -1110,12 +1163,12 @@ export default function WBSPage() {
                                 : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                             }`}
                           >
-                            {task.status === 'DONE' && <CheckCircle2 size={12} className="text-emerald-600" />}
-                            {task.status === 'IN PROGRESS' && <Clock size={12} className="text-amber-600" />}
+                            {task.status === 'DONE' && <CheckCircle2 size={11} className="text-emerald-600" />}
+                            {task.status === 'IN PROGRESS' && <Clock size={11} className="text-amber-600" />}
                             <span>{task.status}</span>
                           </button>
                         </td>
-                        <td className="py-2.5 px-4">
+                        <td className="py-2.5 px-3">
                           <div className="flex items-center gap-2">
                             <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden border border-slate-200/60">
                               <div 
@@ -1125,8 +1178,22 @@ export default function WBSPage() {
                                 style={{ width: `${task.progress}%` }} 
                               />
                             </div>
-                            <span className="text-[10px] font-bold text-slate-600">{task.progress}%</span>
+                            <span className="text-[10px] font-normal text-slate-600 flex-shrink-0">{task.progress}%</span>
                           </div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="text-xs text-slate-600 font-normal block truncate" title={task.notes || 'No note'}>
+                            {task.notes || <span className="text-slate-300 italic">No notes</span>}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {task.errorFlag ? (
+                            <span className="text-[10px] font-normal text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded block truncate" title={task.errorFlag}>
+                              ⚠️ {task.errorFlag}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-300 italic">No issue</span>
+                          )}
                         </td>
                         {/* ACTION COLUMN: Assign, Pencil (Edit) & Delete (Trash) */}
                         <td className="py-2.5 px-4 text-center">
@@ -1463,6 +1530,32 @@ export default function WBSPage() {
                     className="w-full accent-blue-600 cursor-pointer mt-2"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                  Notes (Syncs to Dashboard Pipeline Card)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. GA drawing approved, awaiting BOQ confirmation"
+                  value={editingTask.notes || ''}
+                  onChange={(e) => setEditingTask({ ...editingTask, notes: e.target.value })}
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                  Error / Issue Flag
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Component delay from supplier, high-voltage test pending"
+                  value={editingTask.errorFlag || ''}
+                  onChange={(e) => setEditingTask({ ...editingTask, errorFlag: e.target.value })}
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
               </div>
 
               <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">

@@ -95,4 +95,26 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// PATCH /api/employees/:id/leave-balance — HR editable CL/SL/PL balances
+router.patch('/:id/leave-balance', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { casualLeaveBalance, sickLeaveBalance, privilegeLeaveBalance } = req.body;
+    const updated = await prisma.employee.update({
+      where: { id },
+      data: {
+        ...(casualLeaveBalance !== undefined && { casualLeaveBalance: Number(casualLeaveBalance) }),
+        ...(sickLeaveBalance !== undefined && { sickLeaveBalance: Number(sickLeaveBalance) }),
+        ...(privilegeLeaveBalance !== undefined && { privilegeLeaveBalance: Number(privilegeLeaveBalance) })
+      }
+    });
+    logSystemEvent('API Server', `Leave balances updated for ${updated.name} (${updated.empCode})`, 'info');
+    res.json(updated);
+  } catch (err: any) {
+    console.error('[DB Error] PATCH /api/employees/:id/leave-balance:', err);
+    res.status(500).json({ error: 'Failed to update leave balance', details: err.message });
+  }
+});
+
 export default router;
+

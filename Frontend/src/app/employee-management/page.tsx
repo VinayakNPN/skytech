@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/Toast';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -53,6 +54,9 @@ interface Employee {
   designation: string;
   role: string;
   status: 'Active' | 'On Leave' | 'Suspended';
+  casualLeaveBalance?: number;
+  sickLeaveBalance?: number;
+  privilegeLeaveBalance?: number;
 }
 
 interface EmployeeAttendance {
@@ -93,6 +97,7 @@ interface LeaveApplication {
   fromDate: string;
   toDate: string;
   leaveType: 'Full Day' | 'Half Day - AM' | 'Half Day - PM' | 'Casual' | 'Sick' | 'Earned';
+  leaveCategory?: 'CL' | 'SL' | 'PL'; // Casual Leave / Sick Leave / Privilege Leave
   halfDayTime?: string;
   reason: string;
   status: 'Pending' | 'Approved' | 'Rejected';
@@ -165,6 +170,7 @@ function EmployeeManagementContent() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'attendance' | 'visits' | 'leave'>('dashboard');
   const [loading, setLoading] = useState(true);
   const [backendOnline, setBackendOnline] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (tabParam && ['dashboard', 'attendance', 'visits', 'leave'].includes(tabParam)) {
@@ -296,7 +302,7 @@ function EmployeeManagementContent() {
   // Interactive Form States
   const [taskForm, setTaskForm] = useState({ title: '', assignedTo: '', dueDate: '25 Jun' });
   const [visitForm, setVisitForm] = useState({ title: '', client: '', location: '', engineer: '', notes: '', date: '' });
-  const [leaveForm, setLeaveForm] = useState({ employeeId: 'EMP-010', leaveType: 'Full Day' as 'Full Day' | 'Half Day - AM' | 'Half Day - PM', fromDate: '', toDate: '', halfDayTime: '', reason: '' });
+  const [leaveForm, setLeaveForm] = useState({ employeeId: '', leaveType: 'Full Day' as 'Full Day' | 'Half Day - AM' | 'Half Day - PM', leaveCategory: 'CL' as 'CL' | 'SL' | 'PL', fromDate: '', toDate: '', halfDayTime: '', reason: '' });
   const [selectedPaySlip, setSelectedPaySlip] = useState<SalarySlip | null>(null);
   const [downloadingSlip, setDownloadingSlip] = useState(false);
   const [clockInTime, setClockInTime] = useState('09:00');
@@ -305,7 +311,7 @@ function EmployeeManagementContent() {
   // Fetch all prototype data from Backend, fallback to local mock data on failure
   const fetchAllData = async () => {
     try {
-      const res = await fetch('${API_BASE_URL}/api/employee-management/dashboard');
+      const res = await fetch(`${API_BASE_URL}/api/employee-management/dashboard`);
       if (res.ok) {
         const dashboardData = await res.json();
         setStats(dashboardData.stats);
@@ -319,18 +325,45 @@ function EmployeeManagementContent() {
 
       // Fetch other sub-routes in parallel
       const [empRes, tskRes, jobRes, lvRes, payRes, visRes] = await Promise.all([
-        fetch('${API_BASE_URL}/api/employees').catch(() => null),
-        fetch('${API_BASE_URL}/api/employee-management/tasks').catch(() => null),
-        fetch('${API_BASE_URL}/api/employee-management/jobs').catch(() => null),
-        fetch('${API_BASE_URL}/api/employee-management/leaves').catch(() => null),
-        fetch('${API_BASE_URL}/api/employee-management/salary').catch(() => null),
-        fetch('${API_BASE_URL}/api/employee-management/visits').catch(() => null)
+        fetch(`${API_BASE_URL}/api/employees`).catch(() => null),
+        fetch(`${API_BASE_URL}/api/employee-management/tasks`).catch(() => null),
+        fetch(`${API_BASE_URL}/api/employee-management/jobs`).catch(() => null),
+        fetch(`${API_BASE_URL}/api/employee-management/leaves`).catch(() => null),
+        fetch(`${API_BASE_URL}/api/employee-management/salary`).catch(() => null),
+        fetch(`${API_BASE_URL}/api/employee-management/visits`).catch(() => null)
       ]);
 
-      if (empRes?.ok) setEmployees(await empRes.json());
+      if (empRes?.ok) {
+        const empData = await empRes.json();
+        const hydrated = empData.map((e: any) => {
+          const clOverride = typeof window !== 'undefined' ? localStorage.getItem(`skytech_emp_bal_${e.id}_casualLeaveBalance`) : null;
+          const slOverride = typeof window !== 'undefined' ? localStorage.getItem(`skytech_emp_bal_${e.id}_sickLeaveBalance`) : null;
+          const plOverride = typeof window !== 'undefined' ? localStorage.getItem(`skytech_emp_bal_${e.id}_privilegeLeaveBalance`) : null;
+          return {
+            ...e,
+            casualLeaveBalance: clOverride !== null ? Number(clOverride) : (e.casualLeaveBalance ?? 12),
+            sickLeaveBalance: slOverride !== null ? Number(slOverride) : (e.sickLeaveBalance ?? 10),
+            privilegeLeaveBalance: plOverride !== null ? Number(plOverride) : (e.privilegeLeaveBalance ?? 15)
+          };
+        });
+        setEmployees(hydrated);
+      }
       if (tskRes?.ok) setTasks(await tskRes.json());
       if (jobRes?.ok) setJobs(await jobRes.json());
-      if (lvRes?.ok) setLeaves(await lvRes.json());
+      if (lvRes?.ok) {
+        const lvData = await lvRes.json();
+        const hydratedLeaves = lvData.map((l: any) => {
+          const cat = l.leaveCategory ||
+            (typeof window !== 'undefined'
+              ? (localStorage.getItem(`skytech_leave_cat_${l.id}`) ||
+                 localStorage.getItem(`skytech_leave_cat_${l.employeeId}_${l.fromDate}`) ||
+                 localStorage.getItem(`skytech_last_selected_leave_cat_${l.employeeId}`))
+              : null) ||
+            (l.leaveType?.toLowerCase().includes('sick') ? 'SL' : l.leaveType?.toLowerCase().includes('privilege') ? 'PL' : 'CL');
+          return { ...l, leaveCategory: cat as any };
+        });
+        setLeaves(hydratedLeaves);
+      }
       if (payRes?.ok) setSalarySlips(await payRes.json());
       if (visRes?.ok) setVisits(await visRes.json());
 
@@ -393,7 +426,7 @@ function EmployeeManagementContent() {
 
     if (backendOnline) {
       try {
-        const res = await fetch('${API_BASE_URL}/api/employee-management/attendance/clock', {
+        const res = await fetch(`${API_BASE_URL}/api/employee-management/attendance/clock`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ employeeId, time })
@@ -425,7 +458,7 @@ function EmployeeManagementContent() {
 
       setAttendance(updated);
       syncLocalStats(tasks, leaves, updated, jobs);
-      alert(`Simulated clock in for ${selectedEmp.name} successful!`);
+      showToast(`✓ Clock-in logged for ${selectedEmp.name}`);
     }
   };
 
@@ -436,7 +469,7 @@ function EmployeeManagementContent() {
 
     if (backendOnline) {
       try {
-        const res = await fetch('${API_BASE_URL}/api/employee-management/tasks', {
+        const res = await fetch(`${API_BASE_URL}/api/employee-management/tasks`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(taskForm)
@@ -489,21 +522,44 @@ function EmployeeManagementContent() {
     }
   };
 
+  // Set default employeeId when employees load from backend
+  useEffect(() => {
+    if (employees.length > 0 && !leaveForm.employeeId) {
+      setLeaveForm(prev => ({ ...prev, employeeId: employees[0].id }));
+    }
+  }, [employees]);
+
   // Apply Leave Action
   const handleApplyLeave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!leaveForm.fromDate || !leaveForm.toDate || !leaveForm.reason) return;
+    if (!leaveForm.fromDate || !leaveForm.toDate || !leaveForm.reason || !leaveForm.employeeId) return;
 
-    const applicant = employees.find(emp => emp.id === leaveForm.employeeId) || fallbackEmployees[9]; // default Pankaj
+    const applicant = employees.find(emp => emp.id === leaveForm.employeeId) || employees[0] || fallbackEmployees[0];
+    if (!applicant) return;
 
+    // Compute days taken
+    const from = new Date(leaveForm.fromDate);
+    const to = new Date(leaveForm.toDate);
+    const daysDiff = Math.max(1, Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const deductDays = leaveForm.leaveType.startsWith('Half') ? 0.5 : daysDiff;
+
+    const newLeaveId = `LV-${Date.now()}`;
     const leavePayload = {
+      id: newLeaveId,
       employeeId: applicant.id,
       leaveType: leaveForm.leaveType,
+      leaveCategory: leaveForm.leaveCategory,
       fromDate: leaveForm.fromDate,
       toDate: leaveForm.toDate,
       halfDayTime: leaveForm.halfDayTime,
       reason: leaveForm.reason
     };
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`skytech_leave_cat_${newLeaveId}`, leaveForm.leaveCategory);
+      localStorage.setItem(`skytech_leave_cat_${applicant.id}_${leaveForm.fromDate}`, leaveForm.leaveCategory);
+      localStorage.setItem(`skytech_last_selected_leave_cat_${applicant.id}`, leaveForm.leaveCategory);
+    }
 
     if (backendOnline) {
       try {
@@ -514,27 +570,63 @@ function EmployeeManagementContent() {
         });
         if (res.ok) {
           fetchAllData();
-          setLeaveForm({ employeeId: 'EMP-010', leaveType: 'Full Day', fromDate: '', toDate: '', halfDayTime: '', reason: '' });
+          setLeaveForm(prev => ({ ...prev, leaveType: 'Full Day', leaveCategory: 'CL', fromDate: '', toDate: '', halfDayTime: '', reason: '' }));
+          showToast('✓ Leave request submitted — awaiting admin approval', 'success');
+          return;
         }
       } catch (err) {
         console.error(err);
       }
-    } else {
-      const newLeave: LeaveApplication = {
-        id: `LV-0${leaves.length + 1}`,
-        employeeName: applicant.name, // fallback property
-        ...leavePayload,
-        status: 'Pending',
-        routedToRole: 'Admin'
-      };
-      setLeaves([newLeave, ...leaves]);
-      setLeaveForm({ employeeId: 'EMP-010', leaveType: 'Full Day', fromDate: '', toDate: '', halfDayTime: '', reason: '' });
-      alert('Leave requested successfully! Switch to admin controls below to approve.');
     }
+
+    const newLeave: LeaveApplication = {
+      employeeName: applicant.name,
+      ...leavePayload,
+      status: 'Pending',
+      routedToRole: 'Admin'
+    };
+    setLeaves([newLeave, ...leaves]);
+    setLeaveForm(prev => ({ ...prev, leaveType: 'Full Day', leaveCategory: 'CL', fromDate: '', toDate: '', halfDayTime: '', reason: '' }));
+    showToast('✓ Leave request submitted — awaiting admin approval', 'info');
   };
 
-  // HR Leave Approval Action
+  // HR Leave Approval Action — with leave balance deduction
   const handleLeaveApproval = async (leaveId: string, status: 'Approved' | 'Rejected') => {
+    const targetLeave = leaves.find(l => l.id === leaveId);
+
+    const applyDeduction = (leave: LeaveApplication) => {
+      const emp = employees.find(e => e.id === leave.employeeId);
+      if (emp) {
+        const from = new Date(leave.fromDate);
+        const to = new Date(leave.toDate);
+        const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+        const deduct = leave.leaveType?.startsWith('Half') ? 0.5 : days;
+        const cat = leave.leaveCategory ||
+          (typeof window !== 'undefined'
+            ? (localStorage.getItem(`skytech_leave_cat_${leave.id}`) ||
+               localStorage.getItem(`skytech_leave_cat_${leave.employeeId}_${leave.fromDate}`) ||
+               localStorage.getItem(`skytech_last_selected_leave_cat_${leave.employeeId}`)) as any
+            : null) ||
+          'CL';
+        const balField = cat === 'SL' ? 'sickLeaveBalance' : cat === 'PL' ? 'privilegeLeaveBalance' : 'casualLeaveBalance';
+        const currentBal = (emp as any)[balField] ?? (cat === 'SL' ? 10 : cat === 'PL' ? 15 : 12);
+        const newBal = Math.max(0, currentBal - deduct);
+
+        setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, [balField]: newBal } : e));
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`skytech_emp_bal_${emp.id}_${balField}`, String(newBal));
+        }
+
+        try {
+          fetch(`${API_BASE_URL}/api/employees/${emp.id}/leave-balance`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [balField]: newBal })
+          });
+        } catch {}
+      }
+    };
+
     if (backendOnline) {
       try {
         const res = await fetch(`${API_BASE_URL}/api/employee-management/leaves/${leaveId}/status`, {
@@ -542,41 +634,53 @@ function EmployeeManagementContent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status })
         });
-        if (res.ok) fetchAllData();
+        if (res.ok) {
+          if (status === 'Approved' && targetLeave) {
+            applyDeduction(targetLeave);
+          }
+          setLeaves(prev => prev.map(l => l.id === leaveId ? { ...l, status } : l));
+          showToast(
+            status === 'Approved' ? '✓ Leave approved & balance deducted' : '✗ Leave request rejected',
+            status === 'Approved' ? 'success' : 'error'
+          );
+          return;
+        }
       } catch (err) {
         console.error(err);
       }
-    } else {
-      const targetLeave = leaves.find(l => l.id === leaveId);
-      const updatedLeaves = leaves.map(l => l.id === leaveId ? { ...l, status } : l);
-      setLeaves(updatedLeaves);
-
-      let updatedAttendance = attendance;
-      if (status === 'Approved' && targetLeave) {
-        // Find employee and update attendance status to 'On Leave'
-        updatedAttendance = attendance.map(a => 
-          a.employeeId === targetLeave.employeeId 
-            ? { ...a, status: 'On Leave', clockIn: null, clockOut: null }
-            : a
-        );
-        // If employee not in attendance grid yet, add them as 'On Leave'
-        if (!updatedAttendance.some(a => a.employeeId === targetLeave.employeeId)) {
-          const empDetails = employees.find(e => e.id === targetLeave.employeeId);
-          updatedAttendance.push({
-            id: `ATT-0${updatedAttendance.length + 1}`,
-            employeeId: targetLeave.employeeId,
-            employeeName: targetLeave.employee?.name || targetLeave.employeeName || 'Unknown',
-            designation: empDetails?.designation || 'Staff',
-            date: new Date().toISOString().split('T')[0],
-            clockIn: null,
-            clockOut: null,
-            status: 'On Leave'
-          });
-        }
-        setAttendance(updatedAttendance);
-      }
-      syncLocalStats(tasks, updatedLeaves, updatedAttendance, jobs);
     }
+
+    const updatedLeaves = leaves.map(l => l.id === leaveId ? { ...l, status } : l);
+    setLeaves(updatedLeaves);
+
+    if (status === 'Approved' && targetLeave) {
+      applyDeduction(targetLeave);
+      let updatedAttendance = attendance.map(a =>
+        a.employeeId === targetLeave.employeeId
+          ? { ...a, status: 'On Leave' as const, clockIn: null, clockOut: null }
+          : a
+      );
+      if (!updatedAttendance.some(a => a.employeeId === targetLeave.employeeId)) {
+        const empDetails = employees.find(e => e.id === targetLeave.employeeId);
+        updatedAttendance.push({
+          id: `ATT-0${updatedAttendance.length + 1}`,
+          employeeId: targetLeave.employeeId,
+          employeeName: targetLeave.employee?.name || targetLeave.employeeName || 'Unknown',
+          designation: empDetails?.designation || 'Staff',
+          date: new Date().toISOString().split('T')[0],
+          clockIn: null, clockOut: null,
+          status: 'On Leave'
+        });
+      }
+      setAttendance(updatedAttendance);
+      syncLocalStats(tasks, updatedLeaves, updatedAttendance, jobs);
+    } else {
+      syncLocalStats(tasks, updatedLeaves, attendance, jobs);
+    }
+    showToast(
+      status === 'Approved' ? '✓ Leave approved & balance deducted' : '✗ Leave rejected',
+      status === 'Approved' ? 'success' : 'error'
+    );
   };
 
   // Update Running Job Progress
@@ -611,9 +715,20 @@ function EmployeeManagementContent() {
     e.preventDefault();
     if (!visitForm.title || !visitForm.client || !visitForm.location || !visitForm.engineer) return;
 
+    const newVisit: VisitReport = {
+      id: `VIS-${Date.now()}`,
+      title: visitForm.title,
+      client: visitForm.client,
+      location: visitForm.location,
+      engineer: visitForm.engineer,
+      date: visitForm.date || new Date().toISOString().split('T')[0],
+      status: 'Scheduled',
+      notes: visitForm.notes
+    };
+
     if (backendOnline) {
       try {
-        const res = await fetch('${API_BASE_URL}/api/employee-management/visits', {
+        const res = await fetch(`${API_BASE_URL}/api/employee-management/visits`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(visitForm)
@@ -621,24 +736,17 @@ function EmployeeManagementContent() {
         if (res.ok) {
           fetchAllData();
           setVisitForm({ title: '', client: '', location: '', engineer: '', notes: '', date: '' });
+          showToast('✓ Site visit logged successfully', 'success');
+          return;
         }
       } catch (err) {
         console.error(err);
       }
-    } else {
-      const newVisit: VisitReport = {
-        id: `VIS-0${visits.length + 1}`,
-        title: visitForm.title,
-        client: visitForm.client,
-        location: visitForm.location,
-        engineer: visitForm.engineer,
-        date: visitForm.date || new Date().toISOString().split('T')[0],
-        status: 'Scheduled',
-        notes: visitForm.notes
-      };
-      setVisits([newVisit, ...visits]);
-      setVisitForm({ title: '', client: '', location: '', engineer: '', notes: '', date: '' });
     }
+    // Smooth fallback save
+    setVisits(prev => [newVisit, ...prev]);
+    setVisitForm({ title: '', client: '', location: '', engineer: '', notes: '', date: '' });
+    showToast('✓ Site visit logged successfully', 'success');
   };
 
   // Open Edit Visit Modal
@@ -720,13 +828,15 @@ function EmployeeManagementContent() {
     }
   };
 
-  // Helpers for display avatars
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  // Helpers for display avatars — safe null/undefined guards
+  const getInitials = (name: string | null | undefined) => {
+    const safe = name || '?';
+    return safe.split(' ').map(n => n[0] || '').join('').substring(0, 2).toUpperCase() || '?';
   };
 
-  const getAvatarBg = (name: string) => {
-    const code = name.charCodeAt(0) + (name.charCodeAt(1) || 0);
+  const getAvatarBg = (name: string | null | undefined) => {
+    const safe = name || '?';
+    const code = (safe.charCodeAt(0) || 0) + (safe.charCodeAt(1) || 0);
     const colors = [
       'bg-blue-100 text-blue-800 border-blue-200',
       'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -1246,15 +1356,25 @@ function EmployeeManagementContent() {
                             </tr>
                           </thead>
                           <tbody>
-                            {attendance.map((log) => (
+                            {attendance.map((log) => {
+                              // Backend may populate employeeName directly or via employee.name relation
+                              const displayName = log.employeeName ||
+                                (log as any).employee?.name ||
+                                employees.find(e => e.id === log.employeeId)?.name ||
+                                '—';
+                              const displayDesignation = log.designation ||
+                                (log as any).employee?.designation ||
+                                employees.find(e => e.id === log.employeeId)?.designation ||
+                                '—';
+                              return (
                               <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50/50">
                                 <td className="py-3 font-semibold text-slate-800 flex items-center gap-2">
-                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[9px] border ${getAvatarBg(log.employeeName)}`}>
-                                    {getInitials(log.employeeName)}
+                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[9px] border ${getAvatarBg(displayName)}`}>
+                                    {getInitials(displayName)}
                                   </div>
-                                  {log.employeeName}
+                                  {displayName}
                                 </td>
-                                <td className="py-3 text-slate-500 font-medium">{log.designation}</td>
+                                <td className="py-3 text-slate-500 font-medium">{displayDesignation}</td>
                                 <td className="py-3 font-bold text-slate-600">{log.clockIn || '—'}</td>
                                 <td className="py-3">
                                   <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded font-bold text-[9px] border ${
@@ -1271,7 +1391,8 @@ function EmployeeManagementContent() {
                                   </span>
                                 </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -1325,15 +1446,16 @@ function EmployeeManagementContent() {
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase">Field Engineer</label>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Field Engineer / Staff</label>
                           <select
                             className="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
                             value={visitForm.engineer}
                             onChange={(e) => setVisitForm({ ...visitForm, engineer: e.target.value })}
                           >
                             <option value="">-- Select Engineer --</option>
-                            {employees.filter(e => e.department === 'Service').map(e => (
-                              <option key={e.id} value={e.name}>{e.name}</option>
+                            {/* Show all employees — any employee can go on a site visit */}
+                            {employees.map(e => (
+                              <option key={e.id} value={e.name}>{e.name} ({e.department || e.designation})</option>
                             ))}
                           </select>
                         </div>
@@ -1440,32 +1562,67 @@ function EmployeeManagementContent() {
                     <h2 className="text-xl font-bold text-slate-900">Leave Management System</h2>
                   </div>
 
-                  {/* Leave Balances Header Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-left flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Casual Leave (CL)</span>
-                        <h4 className="text-2xl font-extrabold text-slate-800 mt-1">4 / 8 days</h4>
-                      </div>
-                      <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded">Used</span>
-                    </div>
+                  {/* Leave Balances Header Cards (Per Selected Employee) */}
+                  {(() => {
+                    const activeEmp = employees.find(e => e.id === leaveForm.employeeId) || employees[0];
+                    const cl = activeEmp?.casualLeaveBalance ?? 12;
+                    const sl = activeEmp?.sickLeaveBalance ?? 8;
+                    const pl = activeEmp?.privilegeLeaveBalance ?? 15;
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-left flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                              Casual Leave (CL) — {activeEmp?.name || 'Staff'}
+                            </span>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <input
+                                type="number"
+                                min={0}
+                                max={30}
+                                value={cl}
+                                onChange={async (e) => {
+                                  const val = Number(e.target.value);
+                                  setEmployees(prev => prev.map(emp => emp.id === activeEmp.id ? { ...emp, casualLeaveBalance: val } : emp));
+                                  if (backendOnline) {
+                                    try {
+                                      await fetch(`${API_BASE_URL}/api/employees/${activeEmp.id}/leave-balance`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ casualLeaveBalance: val })
+                                      });
+                                      showToast(`✓ CL balance set to ${val} days for ${activeEmp.name}`);
+                                    } catch (err) { console.error(err); }
+                                  } else {
+                                    showToast(`✓ CL balance set to ${val} days for ${activeEmp.name}`);
+                                  }
+                                }}
+                                className="w-16 px-2 py-1 border border-slate-200 rounded-lg text-lg font-extrabold text-slate-900 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                              />
+                              <span className="text-xs text-slate-500 font-semibold">days remaining</span>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-1 rounded-lg">HR Editable</span>
+                        </div>
 
-                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-left flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sick Leave (SL)</span>
-                        <h4 className="text-2xl font-extrabold text-slate-800 mt-1">5 / 10 days</h4>
-                      </div>
-                      <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">Used</span>
-                    </div>
+                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-left flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sick Leave (SL)</span>
+                            <h4 className="text-2xl font-extrabold text-slate-800 mt-1">{sl} days left</h4>
+                          </div>
+                          <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-lg">Available</span>
+                        </div>
 
-                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-left flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Paid / Earned Leave</span>
-                        <h4 className="text-2xl font-extrabold text-slate-800 mt-1">12 / 15 days</h4>
+                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-left flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Paid / Privilege Leave (PL)</span>
+                            <h4 className="text-2xl font-extrabold text-slate-800 mt-1">{pl} days left</h4>
+                          </div>
+                          <span className="text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-lg">Available</span>
+                        </div>
                       </div>
-                      <span className="text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded">Remaining</span>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Apply Leave Form */}
@@ -1484,17 +1641,31 @@ function EmployeeManagementContent() {
                             ))}
                           </select>
                         </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-slate-400 uppercase">Leave Type</label>
-                          <select
-                            className="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
-                            value={leaveForm.leaveType}
-                            onChange={(e) => setLeaveForm({ ...leaveForm, leaveType: e.target.value as any })}
-                          >
-                            <option value="Full Day">Full Day</option>
-                            <option value="Half Day - AM">Half Day - AM (Morning)</option>
-                            <option value="Half Day - PM">Half Day - PM (Afternoon)</option>
-                          </select>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">Leave Category</label>
+                            <select
+                              className="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                              value={leaveForm.leaveCategory}
+                              onChange={(e) => setLeaveForm({ ...leaveForm, leaveCategory: e.target.value as 'CL' | 'SL' | 'PL' })}
+                            >
+                              <option value="CL">CL — Casual Leave</option>
+                              <option value="SL">SL — Sick Leave</option>
+                              <option value="PL">PL — Privilege Leave</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">Duration</label>
+                            <select
+                              className="mt-1 block w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                              value={leaveForm.leaveType}
+                              onChange={(e) => setLeaveForm({ ...leaveForm, leaveType: e.target.value as any })}
+                            >
+                              <option value="Full Day">Full Day</option>
+                              <option value="Half Day - AM">Half Day - AM</option>
+                              <option value="Half Day - PM">Half Day - PM</option>
+                            </select>
+                          </div>
                         </div>
                         {leaveForm.leaveType !== 'Full Day' && (
                           <div>

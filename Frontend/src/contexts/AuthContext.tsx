@@ -2,6 +2,12 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { setupFetchInterceptor } from '@/config/api';
+
+// Initialize global fetch interceptor immediately
+if (typeof window !== 'undefined') {
+  setupFetchInterceptor();
+}
 
 export interface ModulePermission {
   read: boolean;

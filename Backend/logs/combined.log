@@ -80,3 +80,7 @@
 {"level":"info","message":"[Server] SkyTech PM Backend running on http://localhost:5000","timestamp":"2026-08-13 12:36:28"}
 {"level":"info","message":"[Server] SkyTech PM Backend running on http://localhost:5000","timestamp":"2026-08-13 18:45:04"}
 {"level":"info","message":"[Server] SkyTech PM Backend running on http://localhost:5000","timestamp":"2026-08-13 18:46:37"}
+{"level":"info","message":"[Server] SkyTech PM Backend running on http://localhost:5000","timestamp":"2026-08-14 12:10:38"}
+{"level":"info","message":"[GoogleAuth] New approval request created for chouhanvinayak86@gmail.com","timestamp":"2026-08-14 12:12:03"}
+{"level":"info","message":"[Server] SkyTech PM Backend running on http://localhost:5000","timestamp":"2026-08-14 12:14:33"}
+{"level":"info","message":"[GoogleAuth] Approved chouhanvinayak86@gmail.com as EMP-871","timestamp":"2026-08-14 12:15:12"}

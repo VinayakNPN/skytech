@@ -16,3 +16,33 @@ export function getAuthHeaders(): Record<string, string> {
   }
   return {};
 }
+
+/**
+ * Automatically injects the Authorization header into all fetch requests
+ * aimed at the API_BASE_URL.
+ */
+export function setupFetchInterceptor() {
+  if (typeof window !== 'undefined' && !(window as any)._fetchIntercepted) {
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      let [resource, config] = args;
+      
+      const url = typeof resource === 'string' 
+        ? resource 
+        : (resource instanceof Request ? resource.url : '');
+      
+      if (url.startsWith(API_BASE_URL)) {
+        const authHeaders = getAuthHeaders();
+        if (authHeaders.Authorization) {
+          config = config || {};
+          config.headers = {
+            ...config.headers,
+            ...authHeaders
+          };
+        }
+      }
+      return originalFetch(resource, config);
+    };
+    (window as any)._fetchIntercepted = true;
+  }
+}

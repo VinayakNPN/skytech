@@ -31,24 +31,31 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
         };
         return next();
       } catch (err: any) {
-        logger.warn(`[Auth] Invalid token, using dev fallback: ${err.message}`);
+        logger.warn(`[Auth] Invalid token: ${err.message}`);
+        return res.status(401).json({ error: 'Invalid or expired token' });
       }
     }
 
-    // Dev mode fallback user when unauthenticated or during local development
-    req.user = {
-      id: 'DEV_ADMIN_01',
-      empCode: 'EMP_ADMIN',
-      email: 'admin@skytech.com',
-      name: 'Dev Admin User',
-      role: 'Admin',
-      department: 'Management',
-      isAdmin: true,
-      permissions: '{}'
-    };
-    next();
+    // Dev fallback: only allow unauthenticated requests if explicitly enabled
+    if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_FALLBACK === 'true') {
+      logger.warn('[Auth] DEV FALLBACK active — no token provided, using dev admin user');
+      req.user = {
+        id: 'DEV_ADMIN_01',
+        empCode: 'EMP_ADMIN',
+        email: 'admin@skytech.com',
+        name: 'Dev Admin User',
+        role: 'Admin',
+        department: 'Management',
+        isAdmin: true,
+        permissions: '{}'
+      };
+      return next();
+    }
+
+    return res.status(401).json({ error: 'Authentication required' });
   } catch (err: any) {
     logger.error(`[Auth] Middleware error: ${err.message}`);
-    next();
+    return res.status(500).json({ error: 'Authentication error' });
   }
 };
+

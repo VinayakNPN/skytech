@@ -145,7 +145,9 @@ router.post('/tasks', (0, validators_1.validateBody)(validators_1.createWBSTaskS
                 planHours: Number(planHours) || 8,
                 actualHours: actualHours,
                 status: status || 'NOT STARTED',
-                progress: progress
+                progress: progress,
+                // @ts-ignore
+                blockers: req.body.blockers || null
             }
         });
         (0, mockData_1.logSystemEvent)('API Server', `New WBS task created in DB: ${newTask.wbsCode} - ${newTask.name}`, 'info');
@@ -171,7 +173,11 @@ router.put('/tasks/:id', async (req, res) => {
                 ...(planHours !== undefined && { planHours: Number(planHours) }),
                 ...(actualHours !== undefined && { actualHours: Number(actualHours) }),
                 ...(status && { status }),
-                ...(progress !== undefined && { progress: Number(progress) })
+                ...(progress !== undefined && { progress: Number(progress) }),
+                // @ts-ignore
+                ...(req.body.blockers !== undefined && { blockers: req.body.blockers }),
+                ...(req.body.notes !== undefined && { notes: req.body.notes || null }),
+                ...(req.body.errorFlag !== undefined && { errorFlag: req.body.errorFlag || null })
             }
         });
         (0, mockData_1.logSystemEvent)('API Server', `WBS task ${updated.wbsCode} updated in DB`, 'info');

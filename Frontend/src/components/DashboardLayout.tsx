@@ -25,9 +25,10 @@ import {
   DollarSign,
   TrendingUp
 } from 'lucide-react';
-import { API_BASE_URL } from '@/config/api';
+import { API_BASE_URL, getAuthHeaders } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/components/Toast';
+import AdminApprovalModal from '@/components/AdminApprovalModal';
 
 export interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -44,6 +45,8 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [notifications, setNotifications] = useState<{id: string; message: string; time: string; read: boolean}[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [approvalRequests, setApprovalRequests] = useState<any[]>([]);
+  const [selectedApprovalRequest, setSelectedApprovalRequest] = useState<any | null>(null);
 
   // Restore sidebar state from localStorage on mount (after hydration)
   useEffect(() => {
@@ -173,6 +176,30 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     const interval = setInterval(checkConnection, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  // Admin Approval Checkpoint Polling
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const fetchApprovalRequests = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/approval-requests`, {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setApprovalRequests(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch approval requests', err);
+      }
+    };
+
+    fetchApprovalRequests();
+    const interval = setInterval(fetchApprovalRequests, 15000); // Poll every 15s
+
+    return () => clearInterval(interval);
+  }, [isAdmin]);
 
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');
@@ -394,6 +421,28 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
 
           {/* Right Header Controls */}
           <div className="flex items-center gap-4">
+            {/* Admin Approvals */}
+            {isAdmin && (
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    if (approvalRequests.length > 0) {
+                      setSelectedApprovalRequest(approvalRequests[0]);
+                    }
+                  }}
+                  className={`p-2 rounded-full transition-all duration-200 relative ${approvalRequests.length > 0 ? 'text-amber-500 hover:bg-amber-50' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
+                  title="Pending User Approvals"
+                >
+                  <Users size={18} />
+                  {approvalRequests.length > 0 && (
+                    <span className="absolute top-1 right-1 w-4 h-4 bg-amber-500 text-white rounded-full flex items-center justify-center text-[9px] font-bold border border-white">
+                      {approvalRequests.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
+
             {/* Notifications Bell */}
             <div className="relative" ref={notifRef}>
               <button
@@ -613,6 +662,18 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
             <LogOut size={18} className="text-rose-400" />
             <span className="text-xs font-semibold">Signed out successfully. Session closed.</span>
           </div>
+        )}
+
+        {/* Admin Approval Modal */}
+        {selectedApprovalRequest && (
+          <AdminApprovalModal
+            request={selectedApprovalRequest}
+            onClose={() => setSelectedApprovalRequest(null)}
+            onSuccess={() => {
+              setSelectedApprovalRequest(null);
+              setApprovalRequests(prev => prev.filter(r => r.id !== selectedApprovalRequest.id));
+            }}
+          />
         )}
 
         {/* Content Viewport */}

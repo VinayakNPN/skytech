@@ -111,19 +111,21 @@ model PhaseChecklist {
   completed Boolean  @default(false)
 }
 
-// 5. Staff & Employee Directory (With Microsoft OAuth SSO support)
+// 5. Staff & Employee Directory (With Google OAuth SSO support)
 model Employee {
   id           String   @id @default(uuid())
   empCode      String   @unique
   name         String
   email        String   @unique
-  passwordHash String
+  passwordHash String   @default("")
+  googleId     String?  @unique   // Google OAuth sub ID — set on first approved login
+  avatarUrl    String?            // Google profile picture
   department   String
   designation  String
   role         String
   isAdmin      Boolean  @default(false)
   permissions  String   @default("{}")
-  status       String
+  status       String             // "Active", "Inactive", "Pending"
   // Leave balances (HR-editable)
   casualLeaveBalance    Int @default(12)
   sickLeaveBalance      Int @default(8)
@@ -311,3 +313,16 @@ model SalarySlip {
 }
 
 
+// 10. Google OAuth Approval Requests — pending admin review for new Google sign-ins
+model ApprovalRequest {
+  id          String    @id @default(uuid())
+  googleId    String    @unique   // Google OAuth sub ID
+  email       String
+  name        String
+  avatarUrl   String?             // Google profile picture
+  status      String    @default("Pending")  // "Pending" | "Approved" | "Rejected"
+  permissions String    @default("{}")       // JSON — assigned by admin before approving
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+  resolvedBy  String?             // empCode of admin who resolved
+}

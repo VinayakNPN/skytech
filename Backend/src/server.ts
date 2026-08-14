@@ -14,6 +14,7 @@ import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
 import { notFound } from './middleware/notFound';
 import authRoutes from './routes/authRoutes';
+import googleAuthRoutes from './routes/googleAuthRoutes';
 import { authenticate } from './middleware/authenticate';
 
 dotenv.config();
@@ -54,6 +55,8 @@ app.use(express.json());
 // Public Routes
 app.use('/auth', authRoutes);
 app.use('/api/auth', authRoutes);
+// Google OAuth routes (callback + approval management + SSE)
+app.use('/api/auth', googleAuthRoutes);
 
 // Protected API Routes
 app.use('/api', authenticate);

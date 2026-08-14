@@ -35,7 +35,7 @@ import {
   PauseCircle
 } from 'lucide-react';
 import ProjectDropdown from '@/components/ProjectDropdown';
-import { API_BASE_URL } from '@/config/api';
+import { API_BASE_URL, getAuthHeaders } from '@/config/api';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 
@@ -477,8 +477,7 @@ export default function Dashboard() {
 
     setRunningSiteJobs(prev => prev.map(j => j.id === jobId ? { ...j, progress, status } : j));
     try {
-      await fetch(`${API_BASE_URL}/api/employee-management/jobs/${jobId}/progress`, {
-        method: 'PUT',
+      await fetch(`${API_BASE_URL}/api/employee-management/jobs/${jobId}/progress`, { method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ progress, status })
       });
@@ -545,10 +544,21 @@ export default function Dashboard() {
     if (!selectedProjectId) return;
     
     if (selectedProjectId === 'ALL') {
-      fetch(`${API_BASE_URL}/api/wbs`).then(res => res.json()).then(data => {
-         const tasks = data.flatMap((p: any) => p.tasks.map((t: any) => ({ ...t, phaseName: p.name })));
-         setAllTasks(tasks);
-      }).catch(console.error);
+      fetch(`${API_BASE_URL}/api/wbs`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            const tasks = data.flatMap((p: any) => p.tasks?.map((t: any) => ({ ...t, phaseName: p.name })) || []);
+            setAllTasks(tasks);
+          } else {
+            console.error('WBS API returned non-array data:', data);
+            setAllTasks([]);
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          setAllTasks([]);
+        });
       return;
     }
 
@@ -717,8 +727,7 @@ export default function Dashboard() {
 
     // Try to persist to backend
     try {
-      await fetch(`${API_BASE_URL}/api/wbs/notes`, {
-        method: 'POST',
+      await fetch(`${API_BASE_URL}/api/wbs/notes`, { method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId: selectedProjectId, phaseId, note: remark, lookupCode })
       });
@@ -977,8 +986,7 @@ export default function Dashboard() {
   const updateBlocker = async (taskId: string, newBlocker: string) => {
     setAllTasks(prev => prev.map(t => t.id === taskId ? { ...t, blockers: newBlocker } : t));
     try {
-      await fetch(`${API_BASE_URL}/api/wbs/tasks/${taskId}`, {
-         method: 'PUT',
+      await fetch(`${API_BASE_URL}/api/wbs/tasks/${taskId}`, { method: 'PUT',
          headers: { 'Content-Type': 'application/json' },
          body: JSON.stringify({ blockers: newBlocker })
       });

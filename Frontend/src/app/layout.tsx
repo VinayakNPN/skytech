@@ -4,6 +4,7 @@ import "./globals.css";
 import DashboardLayout from "@/components/DashboardLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
+import GoogleAuthProvider from "@/components/GoogleAuthProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,11 +40,13 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col bg-[#F8FAFC]" suppressHydrationWarning>
-        <AuthProvider>
-          <DashboardLayout>
-            <ErrorBoundary>{children}</ErrorBoundary>
-          </DashboardLayout>
-        </AuthProvider>
+        <GoogleAuthProvider>
+          <AuthProvider>
+            <DashboardLayout>
+              <ErrorBoundary>{children}</ErrorBoundary>
+            </DashboardLayout>
+          </AuthProvider>
+        </GoogleAuthProvider>
       </body>
     </html>
   );

@@ -19,6 +19,7 @@ const logger_1 = require("./utils/logger");
 const errorHandler_1 = require("./middleware/errorHandler");
 const notFound_1 = require("./middleware/notFound");
 const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
+const googleAuthRoutes_1 = __importDefault(require("./routes/googleAuthRoutes"));
 const authenticate_1 = require("./middleware/authenticate");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
@@ -53,6 +54,8 @@ app.use(express_1.default.json());
 // Public Routes
 app.use('/auth', authRoutes_1.default);
 app.use('/api/auth', authRoutes_1.default);
+// Google OAuth routes (callback + approval management + SSE)
+app.use('/api/auth', googleAuthRoutes_1.default);
 // Protected API Routes
 app.use('/api', authenticate_1.authenticate);
 app.use('/api/employees', employees_1.default);
@@ -71,7 +74,15 @@ app.get('/health', (req, res) => {
 app.use(notFound_1.notFound);
 app.use(errorHandler_1.errorHandler);
 // Start Server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     logger_1.logger.info(`[Server] SkyTech PM Backend running on http://localhost:${PORT}`);
     (0, mockData_1.logSystemEvent)('API Server', `Express backend initialized on port ${PORT}`, 'info');
+});
+server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+        logger_1.logger.error(`[Server Error] Port ${PORT} is already in use. Clean up the process using port ${PORT} or set PORT in environment variables.`);
+    }
+    else {
+        logger_1.logger.error(`[Server Error] ${error.message}`);
+    }
 });

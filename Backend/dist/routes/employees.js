@@ -73,4 +73,47 @@ router.post('/', (0, authorize_1.authorize)('employees', 'write'), (0, validator
         res.status(500).json({ error: 'Failed to create employee' });
     }
 });
+// Update Employee Details
+router.put('/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, email, designation, department, role, status } = req.body;
+        const updated = await prisma_1.prisma.employee.update({
+            where: { id },
+            data: {
+                ...(name && { name }),
+                ...(email && { email }),
+                ...(designation && { designation }),
+                ...(department && { department }),
+                ...(role && { role }),
+                ...(status && { status })
+            }
+        });
+        res.json(updated);
+    }
+    catch (err) {
+        res.status(500).json({ error: 'Failed to update employee', details: err.message });
+    }
+});
+// PATCH /api/employees/:id/leave-balance — HR editable CL/SL/PL balances
+router.patch('/:id/leave-balance', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { casualLeaveBalance, sickLeaveBalance, privilegeLeaveBalance } = req.body;
+        const updated = await prisma_1.prisma.employee.update({
+            where: { id },
+            data: {
+                ...(casualLeaveBalance !== undefined && { casualLeaveBalance: Number(casualLeaveBalance) }),
+                ...(sickLeaveBalance !== undefined && { sickLeaveBalance: Number(sickLeaveBalance) }),
+                ...(privilegeLeaveBalance !== undefined && { privilegeLeaveBalance: Number(privilegeLeaveBalance) })
+            }
+        });
+        (0, mockData_1.logSystemEvent)('API Server', `Leave balances updated for ${updated.name} (${updated.empCode})`, 'info');
+        res.json(updated);
+    }
+    catch (err) {
+        console.error('[DB Error] PATCH /api/employees/:id/leave-balance:', err);
+        res.status(500).json({ error: 'Failed to update leave balance', details: err.message });
+    }
+});
 exports.default = router;

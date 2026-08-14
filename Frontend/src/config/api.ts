@@ -3,7 +3,7 @@ const isLocal = typeof window !== 'undefined'
   : process.env.NODE_ENV !== 'production';
 
 export const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL || (isLocal ? 'http://localhost:5000' : 'https://become-identity-images-chairs.trycloudflare.com')
+  process.env.NEXT_PUBLIC_API_URL || (isLocal ? 'http://localhost:5000' : 'https://radiation-spa-oops-residential.trycloudflare.com')
 ).replace(/\/$/, '');
 
 export function getAuthHeaders(): Record<string, string> {

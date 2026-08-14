@@ -40,7 +40,8 @@ app.use(cors({
     if (
       allowedOrigins.some(o => o.trim() === cleanOrigin || o.trim() === '*') ||
       cleanOrigin.endsWith('.vercel.app') ||
-      cleanOrigin.endsWith('.onrender.com')
+      cleanOrigin.endsWith('.onrender.com') ||
+      cleanOrigin.endsWith('.trycloudflare.com')
     ) {
       return callback(null, true);
     }

@@ -2,8 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-async function main() {
-  const email = 'chouhanvinayak86@gmail.com';
+async function setAdmin(email: string, name: string) {
   console.log(`Setting ${email} as Admin...`);
 
   // Check if employee exists
@@ -35,7 +34,7 @@ async function main() {
     employee = await prisma.employee.create({
       data: {
         empCode,
-        name: 'Vinayak Chouhan',
+        name,
         email,
         department: 'Management',
         designation: 'Administrator',
@@ -47,6 +46,11 @@ async function main() {
     });
     console.log(`Successfully created new employee: ${employee.name} (${employee.empCode}) as Admin.`);
   }
+}
+
+async function main() {
+  await setAdmin('chouhanvinayak86@gmail.com', 'Vinayak Chouhan');
+  await setAdmin('switchgearskytech@gmail.com', 'Skytech Switchgear');
 }
 
 main()

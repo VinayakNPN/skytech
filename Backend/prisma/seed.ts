@@ -32,6 +32,7 @@ async function main() {
   
   const employeesData = [
     { empCode: 'EMP-01', name: 'Vinayak NPN', email: 'chouhanvinayak86@gmail.com', department: 'Management', designation: 'Program Manager', role: 'Admin', status: 'Active', passwordHash: defaultPasswordHash, isAdmin: true, permissions: JSON.stringify({}) },
+    { empCode: 'EMP-09', name: 'Skytech Switchgear', email: 'switchgearskytech@gmail.com', department: 'Management', designation: 'Administrator', role: 'Admin', status: 'Active', passwordHash: defaultPasswordHash, isAdmin: true, permissions: JSON.stringify({}) },
     { empCode: 'EMP-02', name: 'Amol M.', email: 'amol@skytech.com', department: 'Design & Costing', designation: 'Senior Design Engineer', role: 'Engineer', status: 'Active', passwordHash: defaultPasswordHash, isAdmin: false, permissions: JSON.stringify({ dashboard: { read: false, write: false, delete: false }, employeeHub: { read: true, write: true, delete: false } }) },
     { empCode: 'EMP-03', name: 'Suresh K.', email: 'suresh@skytech.com', department: 'Mechanical Dept.', designation: 'Fabrication Lead', role: 'Supervisor', status: 'Active', passwordHash: defaultPasswordHash, isAdmin: false, permissions: JSON.stringify({ dashboard: { read: false, write: false, delete: false }, employeeHub: { read: true, write: true, delete: false } }) },
     { empCode: 'EMP-04', name: 'Pankaj R.', email: 'pankaj@skytech.com', department: 'Assembly & Busbar Dept.', designation: 'Assembly Tech', role: 'Operator', status: 'Active', passwordHash: defaultPasswordHash, isAdmin: false, permissions: JSON.stringify({ dashboard: { read: false, write: false, delete: false }, employeeHub: { read: true, write: true, delete: false } }) },
@@ -43,7 +44,7 @@ async function main() {
 
   for (const emp of employeesData) {
     await prisma.employee.upsert({
-      where: { empCode: emp.empCode },
+      where: { email: emp.email },
       update: emp,
       create: emp
     });

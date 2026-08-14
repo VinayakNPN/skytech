@@ -18,6 +18,9 @@ const authenticate = (req, res, next) => {
             if (match)
                 token = match[1];
         }
+        else if (req.query.token && typeof req.query.token === 'string') {
+            token = req.query.token;
+        }
         const secret = process.env.JWT_SECRET || 'dev-secret-key-do-not-use-in-prod';
         if (token) {
             try {

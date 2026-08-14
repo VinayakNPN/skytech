@@ -41,7 +41,8 @@ app.use((0, cors_1.default)({
         const cleanOrigin = origin.trim();
         if (allowedOrigins.some(o => o.trim() === cleanOrigin || o.trim() === '*') ||
             cleanOrigin.endsWith('.vercel.app') ||
-            cleanOrigin.endsWith('.onrender.com')) {
+            cleanOrigin.endsWith('.onrender.com') ||
+            cleanOrigin.endsWith('.trycloudflare.com')) {
             return callback(null, true);
         }
         return callback(new Error('Not allowed by CORS'));

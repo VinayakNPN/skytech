@@ -77,7 +77,11 @@ router.post('/', (0, authorize_1.authorize)('employees', 'write'), (0, validator
 router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, email, designation, department, role, status } = req.body;
+        const { name, email, designation, department, role, status, isAdmin, permissions } = req.body;
+        let permissionsStr;
+        if (permissions !== undefined) {
+            permissionsStr = typeof permissions === 'string' ? permissions : JSON.stringify(permissions);
+        }
         const updated = await prisma_1.prisma.employee.update({
             where: { id },
             data: {
@@ -86,13 +90,30 @@ router.put('/:id', async (req, res) => {
                 ...(designation && { designation }),
                 ...(department && { department }),
                 ...(role && { role }),
-                ...(status && { status })
+                ...(status && { status }),
+                ...(isAdmin !== undefined && { isAdmin }),
+                ...(permissionsStr !== undefined && { permissions: permissionsStr })
             }
         });
         res.json(updated);
     }
     catch (err) {
         res.status(500).json({ error: 'Failed to update employee', details: err.message });
+    }
+});
+// DELETE employee
+router.delete('/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deleted = await prisma_1.prisma.employee.delete({
+            where: { id }
+        });
+        (0, mockData_1.logSystemEvent)('API Server', `Employee ${deleted.name} (${deleted.empCode}) deleted from DB`, 'info');
+        res.json({ message: 'Employee deleted successfully', employee: deleted });
+    }
+    catch (err) {
+        console.error('[DB Error] DELETE /api/employees/:id:', err);
+        res.status(500).json({ error: 'Failed to delete employee', details: err.message });
     }
 });
 // PATCH /api/employees/:id/leave-balance — HR editable CL/SL/PL balances

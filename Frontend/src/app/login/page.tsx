@@ -19,6 +19,7 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [state, setState] = useState<LoginState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [pendingUser, setPendingUser] = useState<{ name: string; email: string; avatarUrl: string | null } | null>(null);
 
   /**
    * Called by Google after the user consents.
@@ -50,6 +51,11 @@ export default function LoginPage() {
       if (res.status === 403) {
         if (data.code === "PENDING_APPROVAL") {
           setState("pending_approval");
+          setPendingUser({
+            name: data.name || "",
+            email: data.email || "",
+            avatarUrl: data.avatarUrl || null
+          });
           return;
         }
         // Rejected or inactive
@@ -128,20 +134,47 @@ export default function LoginPage() {
             {/* ── Pending approval state ── */}
             {state === "pending_approval" && (
               <div className="mt-4 flex flex-col items-center gap-3">
-                <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center">
-                  <svg className="w-7 h-7 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
+                {pendingUser?.avatarUrl ? (
+                  <img
+                    src={pendingUser.avatarUrl}
+                    alt="Avatar"
+                    className="w-14 h-14 rounded-full border-2 border-amber-300 object-cover shadow-sm"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center">
+                    <svg className="w-7 h-7 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                )}
+                
                 <p className="text-sm font-semibold text-slate-700 text-center">
                   Waiting for Admin Approval
                 </p>
+
+                {pendingUser && (
+                  <div className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl flex flex-col items-center">
+                    <span className="text-xs font-bold text-slate-800 text-center truncate max-w-full">
+                      {pendingUser.name}
+                    </span>
+                    <span className="text-[10px] text-slate-500 text-center truncate max-w-full">
+                      {pendingUser.email}
+                    </span>
+                    <span className="mt-1.5 px-2 py-0.5 bg-amber-50 border border-amber-200 text-[9px] font-bold text-amber-600 rounded-full">
+                      Pending Request
+                    </span>
+                  </div>
+                )}
+
                 <p className="text-xs text-slate-500 text-center leading-relaxed">
                   Your account is pending approval. The administrator has been notified and will grant you access shortly.
                 </p>
                 <button
                   type="button"
-                  onClick={() => setState("idle")}
+                  onClick={() => {
+                    setState("idle");
+                    setPendingUser(null);
+                  }}
                   className="mt-2 text-xs text-blue-600 hover:underline"
                 >
                   ← Try a different account

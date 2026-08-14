@@ -47,6 +47,8 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [approvalRequests, setApprovalRequests] = useState<any[]>([]);
   const [selectedApprovalRequest, setSelectedApprovalRequest] = useState<any | null>(null);
+  const [approvalPanelOpen, setApprovalPanelOpen] = useState(false);
+  const approvalRef = useRef<HTMLDivElement>(null);
 
   // Restore sidebar state from localStorage on mount (after hydration)
   useEffect(() => {
@@ -55,31 +57,26 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     if (saved !== null) {
       setSidebarOpen(saved === 'true');
     }
-    // Load notifications from localStorage — client friendly defaults
+    // Load notifications from localStorage
     const storedNotifs = localStorage.getItem('skytech_notifications');
     if (storedNotifs) {
       try {
         const parsed = JSON.parse(storedNotifs);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setNotifications(parsed);
+        if (Array.isArray(parsed)) {
+          // Filter out mock notification IDs to clean up old stored mocks
+          const filtered = parsed.filter((n: any) => n.id !== 'N-1' && n.id !== 'N-2');
+          setNotifications(filtered);
+          localStorage.setItem('skytech_notifications', JSON.stringify(filtered));
         } else {
-          throw new Error('empty');
+          throw new Error('invalid format');
         }
       } catch {
-        const initial = [
-          { id: 'N-1', message: '📝 New note arrived for Project [JOB-01]: "Control wiring schematics verified"', time: '10:30 AM', read: false },
-          { id: 'N-2', message: '📋 Project [JOB-01] Testing Phase updated to In Progress', time: '09:15 AM', read: true }
-        ];
-        setNotifications(initial);
-        localStorage.setItem('skytech_notifications', JSON.stringify(initial));
+        setNotifications([]);
+        localStorage.setItem('skytech_notifications', JSON.stringify([]));
       }
     } else {
-      const initial = [
-        { id: 'N-1', message: '📝 New note arrived for Project [JOB-01]: "Control wiring schematics verified"', time: '10:30 AM', read: false },
-        { id: 'N-2', message: '📋 Project [JOB-01] Testing Phase updated to In Progress', time: '09:15 AM', read: true }
-      ];
-      setNotifications(initial);
-      localStorage.setItem('skytech_notifications', JSON.stringify(initial));
+      setNotifications([]);
+      localStorage.setItem('skytech_notifications', JSON.stringify([]));
     }
     // Remove temporary pre-paint helper class from html element after React mounts
     if (typeof document !== 'undefined') {
@@ -152,6 +149,9 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
       }
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setNotificationPanelOpen(false);
+      }
+      if (approvalRef.current && !approvalRef.current.contains(event.target as Node)) {
+        setApprovalPanelOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -495,13 +495,9 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
           <div className="flex items-center gap-4">
             {/* Admin Approvals */}
             {isAdmin && (
-              <div className="relative">
+              <div className="relative" ref={approvalRef}>
                 <button
-                  onClick={() => {
-                    if (approvalRequests.length > 0) {
-                      setSelectedApprovalRequest(approvalRequests[0]);
-                    }
-                  }}
+                  onClick={() => setApprovalPanelOpen(prev => !prev)}
                   className={`p-2 rounded-full transition-all duration-200 relative ${approvalRequests.length > 0 ? 'text-amber-500 hover:bg-amber-50' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
                   title="Pending User Approvals"
                 >
@@ -512,6 +508,53 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
                     </span>
                   )}
                 </button>
+
+                {/* Approvals Dropdown Panel */}
+                {approvalPanelOpen && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 animate-in fade-in slide-in-from-top-2 duration-150 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                      <span className="text-sm font-bold text-slate-800">Pending Approvals</span>
+                      <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">
+                        {approvalRequests.length} Request{approvalRequests.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
+                      {approvalRequests.length === 0 ? (
+                        <div className="py-8 text-center text-xs text-slate-400 font-semibold">
+                          No pending approvals
+                        </div>
+                      ) : (
+                        approvalRequests.map(req => (
+                          <div
+                            key={req.id}
+                            className="px-4 py-3 flex items-center gap-3 hover:bg-slate-50"
+                          >
+                            {req.avatarUrl ? (
+                              <img src={req.avatarUrl} alt="Avatar" className="w-8 h-8 rounded-full border border-slate-200 shrink-0" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold text-sm shrink-0">
+                                {req.name?.charAt(0) || '?'}
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-slate-700 text-xs truncate leading-none mb-0.5">{req.name}</p>
+                              <p className="text-[10px] text-slate-400 truncate leading-none">{req.email}</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setSelectedApprovalRequest(req);
+                                setApprovalPanelOpen(false);
+                              }}
+                              className="px-3 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-[10px] font-bold text-amber-600 rounded-lg transition-colors cursor-pointer shrink-0"
+                            >
+                              Review
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

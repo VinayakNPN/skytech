@@ -155,7 +155,13 @@ router.post('/google/callback', async (req: Request, res: Response) => {
         return res.json({ token, user: { ...employee, permissions: perms } });
       }
       if (employee.status === 'Pending') {
-        return res.status(403).json({ code: 'PENDING_APPROVAL', message: 'Your account is pending admin approval.' });
+        return res.status(403).json({ 
+          code: 'PENDING_APPROVAL', 
+          message: 'Your account is pending admin approval.',
+          name: employee.name,
+          email: employee.email,
+          avatarUrl: employee.avatarUrl
+        });
       }
       return res.status(403).json({ error: 'Account is inactive. Contact your administrator.' });
     }
@@ -177,7 +183,13 @@ router.post('/google/callback', async (req: Request, res: Response) => {
     const existing = await prisma.approvalRequest.findUnique({ where: { googleId } });
     if (existing) {
       if (existing.status === 'Pending') {
-        return res.status(403).json({ code: 'PENDING_APPROVAL', message: 'Your account is pending admin approval.' });
+        return res.status(403).json({ 
+          code: 'PENDING_APPROVAL', 
+          message: 'Your account is pending admin approval.',
+          name: existing.name,
+          email: existing.email,
+          avatarUrl: existing.avatarUrl
+        });
       }
       if (existing.status === 'Rejected') {
         return res.status(403).json({ error: 'Your access request was rejected. Contact your administrator.' });
@@ -200,7 +212,10 @@ router.post('/google/callback', async (req: Request, res: Response) => {
     return res.status(403).json({
       code: 'PENDING_APPROVAL',
       requestId: approvalReq.id,
-      message: 'Your account requires admin approval. You will be notified once approved.'
+      message: 'Your account requires admin approval. You will be notified once approved.',
+      name,
+      email,
+      avatarUrl
     });
 
   } catch (error: any) {

@@ -84,3 +84,11 @@
 {"level":"info","message":"[GoogleAuth] New approval request created for chouhanvinayak86@gmail.com","timestamp":"2026-08-14 12:12:03"}
 {"level":"info","message":"[Server] SkyTech PM Backend running on http://localhost:5000","timestamp":"2026-08-14 12:14:33"}
 {"level":"info","message":"[GoogleAuth] Approved chouhanvinayak86@gmail.com as EMP-871","timestamp":"2026-08-14 12:15:12"}
+{"level":"info","message":"[Server] SkyTech PM Backend running on http://localhost:5000","timestamp":"2026-08-14 20:45:37"}
+{"level":"info","message":"[Server] SkyTech PM Backend running on http://localhost:5000","timestamp":"2026-08-14 20:57:34"}
+{"level":"info","message":"[Server] SkyTech PM Backend running on http://localhost:5000","timestamp":"2026-08-14 21:07:30"}
+{"level":"info","message":"[Server] SkyTech PM Backend running on http://localhost:5000","timestamp":"2026-08-14 21:08:06"}
+{"level":"info","message":"[Server] SkyTech PM Backend running on http://localhost:5000","timestamp":"2026-08-14 21:11:45"}
+{"level":"info","message":"[SSE] Admin client connected: 1786722305787-0.6050233583523504","timestamp":"2026-08-14 21:15:05"}
+{"level":"info","message":"[SSE] Admin client connected: 1786722306272-0.6323169613208861","timestamp":"2026-08-14 21:15:06"}
+{"level":"info","message":"[SSE] Admin client disconnected: 1786722305787-0.6050233583523504","timestamp":"2026-08-14 21:16:05"}

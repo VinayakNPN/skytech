@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, Search, Mail, Tag, UserCheck, UserX, UserMinus,
-  Briefcase, Layers, Activity, Plus, X, UserPlus, Sparkles, Pencil
+  Briefcase, Layers, Activity, Plus, X, UserPlus, Sparkles, Pencil, Trash2
 } from 'lucide-react';
 import { API_BASE_URL } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +16,8 @@ interface Employee {
   designation: string;
   role: string;
   status: 'Active' | 'On Leave' | 'Suspended';
+  isAdmin?: boolean;
+  permissions?: string | any;
 }
 
 const PREDEFINED_DEPARTMENTS = [
@@ -65,6 +67,8 @@ export default function EmployeeDirectory() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [editError, setEditError] = useState('');
+  const [editEmpIsAdmin, setEditEmpIsAdmin] = useState(false);
+  const [editEmpPermissions, setEditEmpPermissions] = useState(DEFAULT_PERMISSIONS);
 
   const fetchEmployees = async () => {
     try {
@@ -173,7 +177,9 @@ export default function EmployeeDirectory() {
           designation: editingEmployee.designation,
           department: editingEmployee.department,
           role: editingEmployee.role,
-          status: editingEmployee.status
+          status: editingEmployee.status,
+          isAdmin: editEmpIsAdmin,
+          permissions: editEmpPermissions
         })
       });
       if (res.ok) {
@@ -189,8 +195,44 @@ export default function EmployeeDirectory() {
     }
   };
 
+  const handleDeleteEmployee = async () => {
+    if (!editingEmployee) return;
+    if (!window.confirm(`Are you absolutely sure you want to permanently delete ${editingEmployee.name}? This will also delete their attendance logs, leave requests, and task assignments.`)) {
+      return;
+    }
+    setEditError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/employees/${editingEmployee.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${getCookie('token')}`
+        }
+      });
+      if (res.ok) {
+        await fetchEmployees();
+        setIsEditModalOpen(false);
+        setEditingEmployee(null);
+      } else {
+        const err = await res.json();
+        setEditError(err.error || 'Failed to delete employee');
+      }
+    } catch (err) {
+      setEditError('Network error. Please try again.');
+    }
+  };
+
   const handlePermChange = (module: string, action: string, checked: boolean) => {
     setNewEmpPermissions(prev => ({
+      ...prev,
+      [module]: {
+        ...(prev as any)[module],
+        [action]: checked
+      }
+    }));
+  };
+
+  const handleEditPermChange = (module: string, action: string, checked: boolean) => {
+    setEditEmpPermissions(prev => ({
       ...prev,
       [module]: {
         ...(prev as any)[module],
@@ -351,7 +393,21 @@ export default function EmployeeDirectory() {
               {user?.isAdmin && (
                 <button
                   type="button"
-                  onClick={() => { setEditingEmployee({ ...emp }); setEditError(''); setIsEditModalOpen(true); }}
+                  onClick={() => {
+                    setEditingEmployee({ ...emp });
+                    setEditEmpIsAdmin(emp.isAdmin || false);
+                    let perms = DEFAULT_PERMISSIONS;
+                    if (emp.permissions) {
+                      try {
+                        perms = typeof emp.permissions === 'string' ? JSON.parse(emp.permissions) : emp.permissions;
+                      } catch (e) {
+                        console.error('Failed to parse employee permissions', e);
+                      }
+                    }
+                    setEditEmpPermissions(perms);
+                    setEditError('');
+                    setIsEditModalOpen(true);
+                  }}
                   className="flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold text-xs px-3 py-2 rounded-xl transition-all duration-200 cursor-pointer"
                   title="Edit Employee"
                 >
@@ -367,7 +423,7 @@ export default function EmployeeDirectory() {
       {/* EDIT EMPLOYEE MODAL */}
       {isEditModalOpen && editingEmployee && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
 
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 sticky top-0 z-10">
               <div className="flex items-center gap-2">
@@ -452,33 +508,112 @@ export default function EmployeeDirectory() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Status</label>
-                <select
-                  value={editingEmployee.status}
-                  onChange={(e) => setEditingEmployee({ ...editingEmployee, status: e.target.value as any })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                >
-                  <option value="Active">Active</option>
-                  <option value="On Leave">On Leave</option>
-                  <option value="Suspended">Suspended</option>
-                </select>
+              <div className="grid grid-cols-2 gap-4 items-center">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Status</label>
+                  <select
+                    value={editingEmployee.status}
+                    onChange={(e) => setEditingEmployee({ ...editingEmployee, status: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="On Leave">On Leave</option>
+                    <option value="Suspended">Suspended</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center mt-4 gap-2">
+                  <input
+                    type="checkbox"
+                    id="editIsAdmin"
+                    checked={editEmpIsAdmin}
+                    onChange={(e) => setEditEmpIsAdmin(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                  />
+                  <label htmlFor="editIsAdmin" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
+                    System Administrator (Bypasses permissions)
+                  </label>
+                </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+              {/* Permissions Matrix */}
+              {!editEmpIsAdmin && (
+                <div className="border border-slate-200 rounded-xl overflow-hidden mt-6">
+                  <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+                    <h4 className="text-xs font-bold text-slate-800">Module Permissions</h4>
+                    <p className="text-[10px] text-slate-500">Configure what this user can view and edit</p>
+                  </div>
+                  <div className="p-4 bg-white">
+                    <table className="w-full text-left text-xs text-slate-600">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider">
+                          <th className="pb-2">Module</th>
+                          <th className="pb-2 text-center">Read</th>
+                          <th className="pb-2 text-center">Write</th>
+                          <th className="pb-2 text-center">Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {['dashboard', 'inquiries', 'wbs', 'inventory', 'employees', 'employeeHub', 'reports'].map((module) => (
+                          <tr key={module} className="border-b border-slate-50 last:border-0">
+                            <td className="py-2 font-medium text-slate-800 capitalize">{module}</td>
+                            <td className="py-2 text-center">
+                              <input 
+                                type="checkbox" 
+                                checked={(editEmpPermissions as any)[module]?.read || false}
+                                onChange={(e) => handleEditPermChange(module, 'read', e.target.checked)}
+                                className="w-4 h-4 text-blue-600 rounded cursor-pointer" 
+                              />
+                            </td>
+                            <td className="py-2 text-center">
+                              <input 
+                                type="checkbox" 
+                                checked={(editEmpPermissions as any)[module]?.write || false}
+                                onChange={(e) => handleEditPermChange(module, 'write', e.target.checked)}
+                                className="w-4 h-4 text-blue-600 rounded cursor-pointer" 
+                              />
+                            </td>
+                            <td className="py-2 text-center">
+                              <input 
+                                type="checkbox" 
+                                checked={(editEmpPermissions as any)[module]?.delete || false}
+                                onChange={(e) => handleEditPermChange(module, 'delete', e.target.checked)}
+                                className="w-4 h-4 text-blue-600 rounded cursor-pointer" 
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-slate-100 flex justify-between items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => { setIsEditModalOpen(false); setEditingEmployee(null); }}
-                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                  onClick={handleDeleteEmployee}
+                  className="px-4 py-2 border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
                 >
-                  Cancel
+                  <Trash2 size={13} />
+                  Delete Employee
                 </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer"
-                >
-                  Save Changes
-                </button>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setIsEditModalOpen(false); setEditingEmployee(null); }}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+                  >
+                    Save Changes
+                  </button>
+                </div>
               </div>
             </form>
           </div>

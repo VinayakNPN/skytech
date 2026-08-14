@@ -1,306 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
-// 1. Client Inquiries & Commercial Proposals
 model Inquiry {
-  id            String    @id @default(uuid())
-  inquiryCode   String    @unique
-  client        String
-  project       String
-  amount        Float
-  contactPerson String?
-  email         String?
-  phone         String?
-  date          DateTime  @default(now())
-  status        String    // "Inquiry Received", "Offer Sent", "Confirmed", "Unconfirmed"
-  holdStatus    Boolean   @default(false)
-  holdReason    String?
-  heldAt        DateTime?
-  remarks       String?
-  startDate     DateTime?
-  estimatedDuration Int?      // Duration in days
-  projectLead   String?
-  weeksAgo      Int       @default(1)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  orders        Order[]
-  wbsTasks      WBSTask[]
-  teamMembers   ProjectTeam[]
-  jobs          Job[]
-  runningJobs   RunningJob[]
+  id                String        @id @default(uuid())
+  inquiryCode       String        @unique
+  client            String
+  project           String
+  amount            Float
+  contactPerson     String?
+  email             String?
+  phone             String?
+  date              DateTime      @default(now())
+  status            String
+  holdStatus        Boolean       @default(false)
+  holdReason        String?
+  heldAt            DateTime?
+  remarks           String?
+  startDate         DateTime?
+  estimatedDuration Int?
+  projectLead       String?
+  weeksAgo          Int           @default(1)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  jobs              Job[]
+  orders            Order[]
+  teamMembers       ProjectTeam[]
+  runningJobs       RunningJob[]
+  wbsTasks          WBSTask[]
 }
 
-// 2. Confirmed Orders & Manufacturing Jobs
 model Order {
-  id           String            @id @default(uuid())
-  orderNumber  String            @unique
-  inquiryId    String?
-  inquiry      Inquiry?          @relation(fields: [inquiryId], references: [id])
-  clientName   String
-  projectName  String
-  panels       String            // Comma separated or JSON string
-  priority     String            // "High", "Medium", "Low"
-  currentStage String            // e.g. "Mechanical Dept."
-  progress     Int               @default(0)
-  startDate    DateTime
-  deadline     DateTime
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-
-  phaseRemarks    PhaseRemark[]
-  phaseChecklists PhaseChecklist[]
+  id              String            @id @default(uuid())
+  orderNumber     String            @unique
+  inquiryId       String?
+  clientName      String
+  projectName     String
+  panels          String
+  priority        String
+  currentStage    String
+  progress        Int               @default(0)
+  startDate       DateTime
+  deadline        DateTime
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
   materials       MaterialRequest[]
+  inquiry         Inquiry?          @relation(fields: [inquiryId], references: [id])
+  phaseChecklists PhaseChecklist[]
+  phaseRemarks    PhaseRemark[]
 }
 
-// 3. Work Breakdown Structure (WBS) Phases & Tasks
 model WBSPhase {
-  id        String    @id @default(uuid())
-  wbsCode   String    @unique
-  name      String
-  badge     String
-  owner     String
-  tasks     WBSTask[]
+  id      String    @id @default(uuid())
+  wbsCode String    @unique
+  name    String
+  badge   String
+  owner   String
+  tasks   WBSTask[]
 }
 
 model WBSTask {
-  id          String   @id @default(uuid())
+  id          String              @id @default(uuid())
   wbsCode     String
   name        String
   phaseId     String
-  phase       WBSPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
   inquiryId   String?
-  inquiry     Inquiry? @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
   owner       String
   planHours   Float
-  actualHours Float    @default(0)
-  status      String   // "DONE", "IN PROGRESS", "NOT STARTED"
-  progress    Int      @default(0)
-  blockers    String?  // Text area for tracking issues/blockers
-  notes       String?  // Notes synced to dashboard pipeline card
-  errorFlag   String?  // Error/Issue flag for escalation to higher management
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  actualHours Float               @default(0)
+  status      String
+  progress    Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  blockers    String?
+  errorFlag   String?
+  notes       String?
+  inquiry     Inquiry?            @relation(fields: [inquiryId], references: [id])
+  phase       WBSPhase            @relation(fields: [phaseId], references: [id], onDelete: Cascade)
   assignments WBSTaskAssignment[]
 }
 
-// 4. Production Phase Department Checklists & Remarks
 model PhaseRemark {
   id        String   @id @default(uuid())
   orderId   String?
-  order     Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  phaseId   String   // e.g. "assembly"
+  phaseId   String
   remark    String
   updatedAt DateTime @updatedAt
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model PhaseChecklist {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   orderId   String?
-  order     Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  phaseId   String   // e.g. "design", "mechanical", "assembly"
+  phaseId   String
   taskId    Int
   taskName  String
-  completed Boolean  @default(false)
+  completed Boolean @default(false)
+  order     Order?  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
-// 5. Staff & Employee Directory (With Google OAuth SSO support)
 model Employee {
-  id           String   @id @default(uuid())
-  empCode      String   @unique
-  name         String
-  email        String   @unique
-  passwordHash String   @default("")
-  googleId     String?  @unique   // Google OAuth sub ID — set on first approved login
-  avatarUrl    String?            // Google profile picture
-  department   String
-  designation  String
-  role         String
-  isAdmin      Boolean  @default(false)
-  permissions  String   @default("{}")
-  status       String             // "Active", "Inactive", "Pending"
-  // Leave balances (HR-editable)
-  casualLeaveBalance    Int @default(12)
-  sickLeaveBalance      Int @default(8)
-  privilegeLeaveBalance Int @default(15)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  attendances        Attendance[]
-  projectTeams       ProjectTeam[]
-  taskAssignments    WBSTaskAssignment[]
-  visitReports       VisitReport[]
-  leaveApplications  LeaveApplication[]
-  runningJobs        RunningJob[]
-  salarySlips        SalarySlip[]
+  id                    String              @id @default(uuid())
+  empCode               String              @unique
+  name                  String
+  email                 String              @unique
+  passwordHash          String              @default("")
+  googleId              String?             @unique
+  avatarUrl             String?
+  department            String
+  designation           String
+  role                  String
+  isAdmin               Boolean             @default(false)
+  permissions           String              @default("{}")
+  status                String
+  casualLeaveBalance    Int                 @default(12)
+  sickLeaveBalance      Int                 @default(8)
+  privilegeLeaveBalance Int                 @default(15)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  attendances           Attendance[]
+  leaveApplications     LeaveApplication[]
+  projectTeams          ProjectTeam[]
+  runningJobs           RunningJob[]
+  salarySlips           SalarySlip[]
+  visitReports          VisitReport[]
+  taskAssignments       WBSTaskAssignment[]
 }
 
 model Attendance {
-  id          String   @id @default(uuid())
-  employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  date        DateTime @default(now())
-  clockIn     String?
-  clockOut    String?
-  status      String   // "Present", "Late", "On Leave"
+  id         String   @id @default(uuid())
+  employeeId String
+  date       DateTime @default(now())
+  clockIn    String?
+  clockOut   String?
+  status     String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
-// 6. Material Requisitions & Inventory
 model MaterialRequest {
   id            String   @id @default(uuid())
   requestCode   String   @unique
   orderId       String?
-  order         Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
   itemName      String
   quantity      Int
   requestedBy   String
   requestedDate DateTime @default(now())
-  status        String   // "Pending", "Approved", "Rejected"
+  status        String
+  order         Order?   @relation(fields: [orderId], references: [id])
 }
 
-// 7. Project Teams and Resource Allocation
 model ProjectTeam {
-  id          String   @id @default(uuid())
-  inquiryId   String
-  inquiry     Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
-  employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  role        String   // "Program Manager", "Project Lead", "Department Lead", "Member"
-  department  String?  // e.g. "Mechanical", "Design", "Electrical" (null for Project-Wide roles)
-  assignedAt  DateTime @default(now())
-  assignedBy  String?  // Admin/Manager ID who assigned them
+  id         String   @id @default(uuid())
+  inquiryId  String
+  employeeId String
+  role       String
+  assignedAt DateTime @default(now())
+  assignedBy String?
+  department String?
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  inquiry    Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
 
   @@unique([inquiryId, employeeId, department])
 }
 
-
-// 8. Excel-based Store Inventory Management Models
 model Job {
   id          String       @id @default(uuid())
-  jobNo       String       @unique // "JOB-01", "JOB-02"
+  jobNo       String       @unique
   clientName  String?
   location    String?
   startDate   DateTime?    @default(now())
-  status      String       @default("Running") // "Running", "Completed", "On Hold"
-  inquiryId   String?      
-  inquiry     Inquiry?     @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
+  status      String       @default("Running")
+  inquiryId   String?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
-
+  inquiry     Inquiry?     @relation(fields: [inquiryId], references: [id])
   stockIssues StockIssue[]
 }
 
 model StockItem {
   id            String         @id @default(uuid())
-  itemCode      String         @unique // "MCB-006", "CONT-001"
+  itemCode      String         @unique
   description   String
-  make          String?        // "Schneider Electric", "Siemens"
+  make          String?
   partNo        String?
-  category      String         // "Switchgear Parts", "Cable", etc.
-  unit          String         @default("Nos") // "Nos", "Mtr", "Kg"
+  category      String
+  unit          String         @default("Nos")
   openingStock  Float          @default(0)
   minStockLevel Float          @default(0)
   unitRate      Float          @default(0)
-  status        String         @default("Active") // "Active", "Inactive"
+  status        String         @default("Active")
   locationRack  String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-
-  stockReceipts StockReceipt[]
   stockIssues   StockIssue[]
+  stockReceipts StockReceipt[]
 }
 
 model StockReceipt {
   id         String    @id @default(uuid())
-  receiptNo  String    @unique // "GRN-001"
+  receiptNo  String    @unique
   date       DateTime  @default(now())
   itemCode   String
-  stockItem  StockItem @relation(fields: [itemCode], references: [itemCode], onDelete: Cascade)
   qtyIn      Float
   supplier   String?
   invoiceNo  String?
   receivedBy String?
   remarks    String?
   createdAt  DateTime  @default(now())
+  stockItem  StockItem @relation(fields: [itemCode], references: [itemCode], onDelete: Cascade)
 }
 
 model StockIssue {
   id        String    @id @default(uuid())
-  issueNo   String    @unique // "ISS-001"
+  issueNo   String    @unique
   date      DateTime  @default(now())
   jobNo     String
-  job       Job       @relation(fields: [jobNo], references: [jobNo], onDelete: Cascade)
   itemCode  String
-  stockItem StockItem @relation(fields: [itemCode], references: [itemCode], onDelete: Cascade)
   qtyOut    Float
   issuedTo  String?
   issuedBy  String?
   remarks   String?
   createdAt DateTime  @default(now())
+  stockItem StockItem @relation(fields: [itemCode], references: [itemCode], onDelete: Cascade)
+  job       Job       @relation(fields: [jobNo], references: [jobNo], onDelete: Cascade)
 }
 
-// 9. Employee Hub & ERP Models
 model WBSTaskAssignment {
-  id          String   @id @default(uuid())
-  wbsTaskId   String
-  wbsTask     WBSTask  @relation(fields: [wbsTaskId], references: [id], onDelete: Cascade)
-  employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  assignedAt  DateTime @default(now())
+  id         String   @id @default(uuid())
+  wbsTaskId  String
+  employeeId String
+  assignedAt DateTime @default(now())
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  wbsTask    WBSTask  @relation(fields: [wbsTaskId], references: [id], onDelete: Cascade)
 
   @@unique([wbsTaskId, employeeId])
 }
 
 model VisitReport {
-  id          String   @id @default(uuid())
-  employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  clientName  String
-  location    String
-  purpose     String
-  visitDate   DateTime @default(now())
-  remarks     String?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  employeeId String
+  clientName String
+  location   String
+  purpose    String
+  visitDate  DateTime @default(now())
+  remarks    String?
+  createdAt  DateTime @default(now())
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model LeaveApplication {
   id           String   @id @default(uuid())
   employeeId   String
-  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  leaveType    String   // "Full Day", "Half Day - AM", "Half Day - PM"
+  leaveType    String
   fromDate     DateTime
   toDate       DateTime
   halfDayTime  String?
   reason       String
-  status       String   @default("Pending") // "Pending", "Approved", "Rejected"
+  status       String   @default("Pending")
   routedToRole String   @default("HR")
   createdAt    DateTime @default(now())
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model RunningJob {
   id          String    @id @default(uuid())
   employeeId  String
-  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   inquiryId   String?
-  inquiry     Inquiry?  @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
   description String
   progress    Int       @default(0)
   startDate   DateTime  @default(now())
   dueDate     DateTime?
   createdAt   DateTime  @default(now())
+  inquiry     Inquiry?  @relation(fields: [inquiryId], references: [id])
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }
 
 model SalarySlip {
   id          String   @id @default(uuid())
   employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   month       String
   year        Int
   basicSalary Float
@@ -308,21 +290,20 @@ model SalarySlip {
   deductions  Float    @default(0)
   netSalary   Float
   createdAt   DateTime @default(now())
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, month, year])
 }
 
-
-// 10. Google OAuth Approval Requests — pending admin review for new Google sign-ins
 model ApprovalRequest {
   id          String    @id @default(uuid())
-  googleId    String    @unique   // Google OAuth sub ID
+  googleId    String    @unique
   email       String
   name        String
-  avatarUrl   String?             // Google profile picture
-  status      String    @default("Pending")  // "Pending" | "Approved" | "Rejected"
-  permissions String    @default("{}")       // JSON — assigned by admin before approving
+  avatarUrl   String?
+  status      String    @default("Pending")
+  permissions String    @default("{}")
   createdAt   DateTime  @default(now())
   resolvedAt  DateTime?
-  resolvedBy  String?             // empCode of admin who resolved
+  resolvedBy  String?
 }

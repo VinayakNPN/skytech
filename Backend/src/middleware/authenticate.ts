@@ -12,6 +12,8 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
     } else if (req.headers.cookie) {
       const match = req.headers.cookie.match(/token=([^;]+)/);
       if (match) token = match[1];
+    } else if (req.query.token && typeof req.query.token === 'string') {
+      token = req.query.token;
     }
 
     const secret = process.env.JWT_SECRET || 'dev-secret-key-do-not-use-in-prod';

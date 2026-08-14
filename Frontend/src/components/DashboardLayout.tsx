@@ -177,12 +177,13 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     return () => clearInterval(interval);
   }, []);
 
-  // Admin Approval Checkpoint Polling
+  // Admin Approval Checkpoint Polling & SSE
   const seenRequestsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!isAdmin) return;
 
+    // 1. Initial Fetch & Polling (Fallback)
     const fetchApprovalRequests = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/auth/approval-requests`, {
@@ -219,7 +220,57 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
     fetchApprovalRequests();
     const interval = setInterval(fetchApprovalRequests, 15000); // Poll every 15s
 
-    return () => clearInterval(interval);
+    // 2. Real-time SSE Connection
+    let evtSource: EventSource | null = null;
+    const getToken = () => {
+      if (typeof document === 'undefined') return null;
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; token=`);
+      if (parts.length === 2) return parts.pop()?.split(';').shift();
+      return null;
+    };
+    
+    const token = getToken();
+    if (token) {
+      evtSource = new EventSource(`${API_BASE_URL}/api/auth/admin/events?token=${token}`);
+      
+      evtSource.onmessage = (event) => {
+        try {
+          if (event.data === ': heartbeat') return;
+          const data = JSON.parse(event.data);
+          if (data.type === 'NEW_APPROVAL_REQUEST') {
+            const req = data.request;
+            
+            setApprovalRequests(prev => {
+              if (prev.find(r => r.id === req.id)) return prev;
+              return [req, ...prev];
+            });
+
+            if (!seenRequestsRef.current.has(req.id)) {
+              seenRequestsRef.current.add(req.id);
+              
+              window.dispatchEvent(new CustomEvent('skytech:notification', {
+                detail: { message: `🔐 New User Approval Required: ${req.name || req.email}` }
+              }));
+              
+              setSelectedApprovalRequest((prev: any) => {
+                if (!prev) return req;
+                return prev;
+              });
+            }
+          }
+        } catch (err) {
+          console.error('SSE parse error', err);
+        }
+      };
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (evtSource) {
+        evtSource.close();
+      }
+    };
   }, [isAdmin]);
 
   const [projectsList, setProjectsList] = useState<any[]>([]);

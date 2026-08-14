@@ -178,6 +178,8 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
   }, []);
 
   // Admin Approval Checkpoint Polling
+  const seenRequestsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     if (!isAdmin) return;
 
@@ -189,6 +191,25 @@ function DashboardLayoutInner({ children }: DashboardLayoutProps) {
         if (res.ok) {
           const data = await res.json();
           setApprovalRequests(data);
+          
+          if (data && data.length > 0) {
+            const newRequests = data.filter((req: any) => !seenRequestsRef.current.has(req.id));
+            if (newRequests.length > 0) {
+              newRequests.forEach((req: any) => {
+                seenRequestsRef.current.add(req.id);
+                window.dispatchEvent(new CustomEvent('skytech:notification', {
+                  detail: { message: `🔐 New User Approval Required: ${req.name || req.email}` }
+                }));
+              });
+
+              setSelectedApprovalRequest((prev: any) => {
+                if (!prev) {
+                  return newRequests[0];
+                }
+                return prev;
+              });
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to fetch approval requests', err);
